@@ -60,16 +60,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickLogin = (user: 'admin' | 'teacher') => {
-    if (user === 'admin') {
-      setUsername('idaremai');
-      setPassword('767943');
-    } else {
-      setUsername('sivasmai');
-      setPassword('767943');
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-slate-50 via-slate-100 to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/20 relative">
       {/* Top Bar with theme toggle */}
@@ -167,7 +157,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base shadow-md transition-all rounded-xl"
+                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base shadow-md transition-all rounded-xl mt-2"
               >
                 {isLoading ? (
                   <span className="flex items-center gap-2">
@@ -180,33 +170,6 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
-
-            {/* Fast Demo Fill Buttons */}
-            <div className="mt-5 pt-4 border-t border-border">
-              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2 text-center">
-                Hızlı Demo Girişi (Geliştirme)
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickLogin('teacher')}
-                  className="text-xs h-9 font-medium border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300"
-                >
-                  👨‍🏫 Nöbetçi Öğretmen
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickLogin('admin')}
-                  className="text-xs h-9 font-medium border-purple-200 dark:border-purple-900 text-purple-700 dark:text-purple-300"
-                >
-                  👔 Yönetici (Admin)
-                </Button>
-              </div>
-            </div>
           </CardContent>
 
           <CardFooter className="flex flex-col gap-2 pt-0 pb-4 border-t border-border/60">
