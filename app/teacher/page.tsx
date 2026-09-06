@@ -9,7 +9,6 @@ import { cacheStudentsLocally, searchLocalStudents } from '@/lib/offline-storage
 import { getCurrentIstanbulDate, getCurrentIstanbulTime, VIOLATION_TYPE_MAP } from '@/lib/utils';
 import { AppHeader } from '@/components/app-header';
 import { TeacherBottomNav } from '@/components/teacher-bottom-nav';
-import { QrLoginModal } from '@/components/qr-modal';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -45,7 +44,7 @@ export default function TeacherPage() {
   const [note, setNote] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showQrModal, setShowQrModal] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   // Duplicate warning modal state
   const [duplicateWarning, setDuplicateWarning] = useState<{
@@ -56,12 +55,19 @@ export default function TeacherPage() {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Focus search input on mount
+  // Detect touch device to prevent mobile soft keyboard popup
   useEffect(() => {
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
+    if (typeof window !== 'undefined') {
+      setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0 || window.innerWidth < 768);
     }
   }, []);
+
+  // Focus search input on mount on desktop
+  useEffect(() => {
+    if (searchInputRef.current && !isTouchDevice) {
+      searchInputRef.current.focus();
+    }
+  }, [isTouchDevice]);
 
   // Check role authorization
   useEffect(() => {
@@ -263,7 +269,6 @@ export default function TeacherPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 md:pb-8 flex flex-col">
       <AppHeader
         title="Nöbetçi Öğretmen Kontrol Paneli"
-        onOpenQr={() => setShowQrModal(true)}
       />
 
       <main className="flex-1 max-w-lg w-full mx-auto p-3 sm:p-4 space-y-3">
@@ -276,9 +281,15 @@ export default function TeacherPage() {
             <Input
               ref={searchInputRef}
               type="text"
-              inputMode="numeric"
-              placeholder="Öğrenci No veya Ad Soyad girin..."
+              inputMode={isTouchDevice ? "none" : "numeric"}
+              readOnly={isTouchDevice}
+              placeholder="Öğrenci No girin..."
               value={searchQuery}
+              onClick={() => {
+                if (isTouchDevice && searchInputRef.current) {
+                  searchInputRef.current.blur();
+                }
+              }}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 if (selectedStudent) setSelectedStudent(null);
@@ -288,7 +299,7 @@ export default function TeacherPage() {
                   handleSelectStudent(searchResults[0]);
                 }
               }}
-              className="h-14 pl-11 pr-20 text-lg font-semibold rounded-2xl shadow-sm border-blue-200 dark:border-blue-900 focus-visible:ring-blue-600 bg-card"
+              className="h-14 pl-11 pr-20 text-lg font-semibold rounded-2xl shadow-sm border-blue-200 dark:border-blue-900 focus-visible:ring-blue-600 bg-card cursor-pointer sm:cursor-text"
             />
             {searchQuery && (
               <div className="absolute inset-y-0 right-0 pr-2 flex items-center gap-1">
@@ -619,11 +630,8 @@ export default function TeacherPage() {
         </div>
       )}
 
-      {/* Dynamic QR Share Modal */}
-      <QrLoginModal open={showQrModal} onOpenChange={setShowQrModal} />
-
       {/* Teacher Mobile Bottom Nav */}
-      <TeacherBottomNav onOpenQr={() => setShowQrModal(true)} />
+      <TeacherBottomNav />
     </div>
   );
 }

@@ -28,7 +28,7 @@ export function TeacherBottomNav({ onOpenQr }: { onOpenQr?: () => void }) {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-t border-border shadow-lg md:hidden">
-      <div className="grid grid-cols-4 h-16 max-w-md mx-auto px-2">
+      <div className="grid grid-cols-3 h-16 max-w-md mx-auto px-4">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -52,16 +52,6 @@ export function TeacherBottomNav({ onOpenQr }: { onOpenQr?: () => void }) {
             </Link>
           );
         })}
-
-        <button
-          onClick={onOpenQr}
-          className="flex flex-col items-center justify-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors select-none"
-        >
-          <div className="p-1 rounded-xl hover:bg-muted transition-all">
-            <QrCode className="h-5 w-5" />
-          </div>
-          <span>QR Paylaş</span>
-        </button>
 
         <button
           onClick={() => logout()}

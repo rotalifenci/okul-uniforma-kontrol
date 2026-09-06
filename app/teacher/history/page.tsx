@@ -7,7 +7,6 @@ import { Violation } from '@/types';
 import { formatDateTR, VIOLATION_TYPE_MAP } from '@/lib/utils';
 import { AppHeader } from '@/components/app-header';
 import { TeacherBottomNav } from '@/components/teacher-bottom-nav';
-import { QrLoginModal } from '@/components/qr-modal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +21,6 @@ export default function TeacherHistoryPage() {
   const [violations, setViolations] = useState<Violation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<'today' | 'week'>('today');
-  const [showQrModal, setShowQrModal] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -84,7 +82,6 @@ export default function TeacherHistoryPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 md:pb-8 flex flex-col">
       <AppHeader
         title="Girdiğim İhlal Kayıtları"
-        onOpenQr={() => setShowQrModal(true)}
       />
 
       <main className="flex-1 max-w-lg w-full mx-auto p-3 sm:p-4 space-y-4">
@@ -202,8 +199,7 @@ export default function TeacherHistoryPage() {
         )}
       </main>
 
-      <QrLoginModal open={showQrModal} onOpenChange={setShowQrModal} />
-      <TeacherBottomNav onOpenQr={() => setShowQrModal(true)} />
+      <TeacherBottomNav />
     </div>
   );
 }
