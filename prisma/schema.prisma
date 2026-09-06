@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  username      String      @unique
+  name          String
+  surname       String
+  role          String      @default("TEACHER") // TEACHER, ADMIN
+  password_hash String
+  active        Boolean     @default(true)
+  last_login_at DateTime?
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+
+  violations    Violation[]
+  audit_logs    AuditLog[]
+  qr_sessions   QrSession[]
+
+  @@index([role])
+  @@index([active])
+}
+
+model Student {
+  id               String      @id @default(cuid())
+  ogrenci_no       String      @unique
+  ad_soyad         String
+  sinif            String
+  sube             String
+  cinsiyet         String?     // ERKEK, KIZ
+  veli_telefon     String?
+  profil_resmi_url String?
+  aktif            Boolean     @default(true)
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+
+  violations       Violation[]
+
+  @@index([ogrenci_no])
+  @@index([ad_soyad])
+  @@index([sinif])
+  @@index([sube])
+  @@index([aktif])
+}
+
+model Violation {
+  id                    String    @id @default(cuid())
+  student_id            String
+  teacher_id            String
+  duty_teacher_name     String?   // Actual name of the teacher on shift (e.g. Mehmet Kaya)
+  duty_location         String?   // Location/Station (e.g. Ana Giriş Kapısı, Bahçe, Zemin Kat)
+  type                  String    // UPPER_UNIFORM_MISSING, LOWER_UNIFORM_MISSING, CIVIL_CLOTHES, INAPPROPRIATE_CLOTHING, OTHER
+  note                  String?
+  date                  String    // YYYY-MM-DD format (Europe/Istanbul)
+  time                  String    // HH:mm format
+  client_transaction_id String?   @unique
+  is_cancelled          Boolean   @default(false)
+  cancelled_reason      String?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  student               Student   @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  teacher               User      @relation(fields: [teacher_id], references: [id], onDelete: Restrict)
+
+  @@index([student_id])
+  @@index([teacher_id])
+  @@index([type])
+  @@index([date])
+  @@index([created_at])
+  @@index([is_cancelled])
+}
+
+model ViolationType {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  name       String
+  color      String   @default("#ef4444")
+  icon       String?
+  is_active  Boolean  @default(true)
+  sort_order Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([code])
+  @@index([is_active])
+}
+
+model QrSession {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  user_id    String
+  status     String   @default("PENDING") // PENDING, CONSUMED, EXPIRED
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([status])
+  @@index([expires_at])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  user_id     String?
+  action      String   // STUDENT_CREATED, VIOLATION_CREATED, VIOLATION_CANCELLED, USER_LOGIN, etc.
+  entity_type String   // STUDENT, VIOLATION, USER, SETTING, IMPORT
+  entity_id   String?
+  old_value   String?  // JSON
+  new_value   String?  // JSON
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+
+  user        User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([action])
+  @@index([entity_type])
+  @@index([created_at])
+}
+
+model SystemSetting {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  value      String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([key])
+}
