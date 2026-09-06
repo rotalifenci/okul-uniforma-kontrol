@@ -26,8 +26,12 @@ export async function POST(request: NextRequest) {
       return errorResponse('Kullanıcı adı veya şifre hatalı.', 'INVALID_CREDENTIALS', 401);
     }
 
-    // Update last login
-    await userRepository.updateLastLogin(user.id);
+    // Update last login (non-blocking)
+    try {
+      await userRepository.updateLastLogin(user.id);
+    } catch (e) {
+      console.warn('Could not update last login timestamp:', e);
+    }
 
     const tokenPayload = {
       userId: user.id,
@@ -43,15 +47,20 @@ export async function POST(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
     const userAgent = request.headers.get('user-agent') || '';
 
-    await logAuditEvent({
-      userId: user.id,
-      action: 'USER_LOGIN',
-      entityType: 'AUTH',
-      entityId: user.id,
-      ipAddress: ip,
-      userAgent: userAgent,
-      newValue: { username: user.username, role: user.role },
-    });
+    // Log audit event (non-blocking)
+    try {
+      await logAuditEvent({
+        userId: user.id,
+        action: 'USER_LOGIN',
+        entityType: 'AUTH',
+        entityId: user.id,
+        ipAddress: ip,
+        userAgent: userAgent,
+        newValue: { username: user.username, role: user.role },
+      });
+    } catch (e) {
+      console.warn('Could not write login audit log:', e);
+    }
 
     return successResponse({
       user: {
