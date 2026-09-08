@@ -397,9 +397,6 @@ export default function AdminReportsPage() {
                                 <Link href={`/admin/students/${item.student.id}`} className="font-bold text-foreground hover:text-blue-600 block">
                                   {item.student.ad_soyad}
                                 </Link>
-                                {item.student.veli_telefon && (
-                                  <span className="text-[10px] text-muted-foreground">{item.student.veli_telefon}</span>
-                                )}
                               </div>
                             </div>
                           </td>
@@ -456,7 +453,7 @@ export default function AdminReportsPage() {
                     <th className="p-3.5">Adı Soyadı</th>
                     <th className="p-3.5">Sınıf/Şube</th>
                     <th className="p-3.5">İhlal Türü</th>
-                    <th className="p-3.5">Nöbetçi Öğretmen / Yer</th>
+                    <th className="p-3.5">Nöbetçi Öğretmen</th>
                     <th className="p-3.5">Not</th>
                     <th className="p-3.5 text-right pr-5">İşlem</th>
                   </tr>
@@ -508,9 +505,6 @@ export default function AdminReportsPage() {
                             <div className="font-medium text-foreground">
                               {item.duty_teacher_name || (item.teacher ? `${item.teacher.name} ${item.teacher.surname}` : '-')}
                             </div>
-                            {item.duty_location && (
-                              <span className="text-[10px] text-muted-foreground">📍 {item.duty_location}</span>
-                            )}
                           </td>
                           <td className="p-3.5 text-xs text-muted-foreground max-w-xs truncate">
                             {item.note || '-'}

@@ -49,7 +49,6 @@ export default function AdminStudentsPage() {
     sinif: '9',
     sube: 'A',
     cinsiyet: 'ERKEK',
-    veli_telefon: '',
   });
 
   const fetchStudents = async () => {
@@ -99,7 +98,7 @@ export default function AdminStudentsPage() {
       if (json.success) {
         toast.success('Öğrenci başarıyla eklendi.');
         setShowAddDialog(false);
-        setFormData({ ogrenci_no: '', ad_soyad: '', sinif: '9', sube: 'A', cinsiyet: 'ERKEK', veli_telefon: '' });
+        setFormData({ ogrenci_no: '', ad_soyad: '', sinif: '9', sube: 'A', cinsiyet: 'ERKEK' });
         fetchStudents();
       } else {
         toast.error(json.message || 'Öğrenci eklenemedi.');
@@ -155,7 +154,6 @@ export default function AdminStudentsPage() {
       sinif: s.sinif,
       sube: s.sube,
       cinsiyet: s.cinsiyet || 'ERKEK',
-      veli_telefon: s.veli_telefon || '',
     });
     setShowEditDialog(true);
   };
@@ -176,7 +174,7 @@ export default function AdminStudentsPage() {
         <div className="flex items-center gap-2">
           <Button
             onClick={() => {
-              setFormData({ ogrenci_no: '', ad_soyad: '', sinif: '9', sube: 'A', cinsiyet: 'ERKEK', veli_telefon: '' });
+              setFormData({ ogrenci_no: '', ad_soyad: '', sinif: '9', sube: 'A', cinsiyet: 'ERKEK' });
               setShowAddDialog(true);
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 shadow-sm"
@@ -309,9 +307,6 @@ export default function AdminStudentsPage() {
                           <Link href={`/admin/students/${s.id}`} className="font-bold text-foreground hover:text-blue-600 block">
                             {s.ad_soyad}
                           </Link>
-                          {s.veli_telefon && (
-                            <span className="text-[11px] text-muted-foreground">{s.veli_telefon}</span>
-                          )}
                         </div>
                       </div>
                     </td>
@@ -517,27 +512,16 @@ export default function AdminStudentsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground">Cinsiyet</label>
-              <select
-                value={formData.cinsiyet}
-                onChange={(e) => setFormData({ ...formData, cinsiyet: e.target.value })}
-                className="w-full h-11 rounded-xl border border-input bg-background px-3 text-sm focus:ring-2 focus:ring-blue-600"
-              >
-                <option value="ERKEK">Erkek</option>
-                <option value="KIZ">Kız</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground">Veli Telefonu</label>
-              <Input
-                type="text"
-                placeholder="05XXXXXXXXX"
-                value={formData.veli_telefon}
-                onChange={(e) => setFormData({ ...formData, veli_telefon: e.target.value })}
-              />
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-foreground">Cinsiyet</label>
+            <select
+              value={formData.cinsiyet}
+              onChange={(e) => setFormData({ ...formData, cinsiyet: e.target.value })}
+              className="w-full h-11 rounded-xl border border-input bg-background px-3 text-sm focus:ring-2 focus:ring-blue-600"
+            >
+              <option value="ERKEK">Erkek</option>
+              <option value="KIZ">Kız</option>
+            </select>
           </div>
 
           <DialogFooter>
@@ -611,15 +595,6 @@ export default function AdminStudentsPage() {
                 ))}
               </select>
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground">Veli Telefonu</label>
-            <Input
-              type="text"
-              value={formData.veli_telefon}
-              onChange={(e) => setFormData({ ...formData, veli_telefon: e.target.value })}
-            />
           </div>
 
           <DialogFooter>

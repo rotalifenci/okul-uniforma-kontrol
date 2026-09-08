@@ -121,14 +121,6 @@ export default function StudentDetailPage() {
                       <span>{student.cinsiyet}</span>
                     </>
                   )}
-                  {student.veli_telefon && (
-                    <>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <Phone className="h-3.5 w-3.5" /> {student.veli_telefon}
-                      </span>
-                    </>
-                  )}
                 </div>
               </div>
             </div>

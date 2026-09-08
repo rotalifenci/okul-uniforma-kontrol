@@ -102,7 +102,7 @@ export function AppHeader({ onToggleMobileMenu, title }: AppHeaderProps) {
         <ThemeToggle />
 
         {user ? (
-          <div className="flex items-center gap-2 pl-2 border-l border-border">
+          <div className="hidden md:flex items-center gap-2 pl-2 border-l border-border">
             <div className="hidden lg:block text-right">
               <span className="text-xs font-bold text-foreground block">
                 {user.name} {user.surname}

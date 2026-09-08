@@ -81,7 +81,6 @@ export async function GET(
         'Sınıf': v.student ? `${v.student.sinif}-${v.student.sube}` : '-',
         'İhlal Türü': typeLabel,
         'Nöbetçi Öğretmen': v.duty_teacher_name || (v.teacher ? `${v.teacher.name} ${v.teacher.surname}` : '-'),
-        'Nöbet Yeri': v.duty_location || '-',
         'Not': v.note || '-',
       };
     });
@@ -132,6 +131,7 @@ export async function GET(
     // 3. PDF Export
     if (format === 'pdf') {
       const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
 
       const toPdfText = (str: string | null | undefined) => {
         if (!str) return '-';
@@ -150,20 +150,20 @@ export async function GET(
           .replace(/Ü/g, 'U');
       };
 
-      // Header
+      // Header Centered
       doc.setFontSize(15);
-      doc.text(toPdfText(schoolName), 14, 18);
+      doc.text(toPdfText(schoolName), pageWidth / 2, 16, { align: 'center' });
       doc.setFontSize(11);
-      doc.text(toPdfText('Kılık-Kıyafet & Üniforma Denetim Raporu'), 14, 25);
+      doc.text(toPdfText('Kılık-Kıyafet & Üniforma Denetim Raporu'), pageWidth / 2, 23, { align: 'center' });
 
       doc.setFontSize(8.5);
       doc.setTextColor(100);
       const dateRangeText = startDate || endDate
         ? `Tarih Araligi: ${formatDateTR(startDate) || 'Baslangic'} - ${formatDateTR(endDate) || 'Gunumuz'}`
         : 'Tarih Araligi: Tum Kayitlar';
-      doc.text(`${toPdfText(dateRangeText)} | Toplam IhlaI: ${violations.length} | Rapor Tarihi: ${formatDateTR(new Date())}`, 14, 32);
+      doc.text(`${toPdfText(dateRangeText)} | Toplam IhlaI: ${violations.length} | Rapor Tarihi: ${formatDateTR(new Date())}`, pageWidth / 2, 30, { align: 'center' });
 
-      const headers = [['#', 'Tarih', 'Saat', 'No', 'Adi Soyadi', 'Sinif', 'Ihlal Turu', 'Ogretmen', 'Nobet Yeri', 'Not']];
+      const headers = [['#', 'Tarih', 'Saat', 'No', 'Adi Soyadi', 'Sinif', 'Ihlal Turu', 'Ogretmen', 'Not']];
       const rows = tableData.map((d) => [
         d['Sıra'],
         d['Tarih'],
@@ -173,14 +173,13 @@ export async function GET(
         d['Sınıf'],
         toPdfText(d['İhlal Türü']),
         toPdfText(d['Nöbetçi Öğretmen']),
-        toPdfText(d['Nöbet Yeri']),
         toPdfText(d['Not']),
       ]);
 
       autoTable(doc, {
         head: headers,
         body: rows,
-        startY: 38,
+        startY: 36,
         styles: { fontSize: 8, cellPadding: 2.5 },
         headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [248, 250, 252] },
