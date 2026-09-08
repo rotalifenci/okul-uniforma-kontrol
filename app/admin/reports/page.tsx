@@ -79,10 +79,10 @@ export default function AdminReportsPage() {
     }
   };
 
-  const fetchReports = async () => {
+  const fetchReports = async (showToast = false) => {
     setIsLoading(true);
     try {
-      let url = `/api/reports?`;
+      let url = `/api/reports?_t=${Date.now()}&`;
       if (search.trim()) url += `search=${encodeURIComponent(search.trim())}&`;
       if (startDate) url += `startDate=${startDate}&`;
       if (endDate) url += `endDate=${endDate}&`;
@@ -90,8 +90,8 @@ export default function AdminReportsPage() {
       if (selectedType) url += `type=${selectedType}&`;
 
       const [res1, res2] = await Promise.all([
-        fetch(url),
-        fetch('/api/reports/analytics'),
+        fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } }),
+        fetch(`/api/reports/analytics?_t=${Date.now()}`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } }),
       ]);
 
       const json1 = await res1.json();
@@ -99,6 +99,7 @@ export default function AdminReportsPage() {
 
       if (json1.success) setReportData(json1.data);
       if (json2.success) setClassAnalytics(json2.data || []);
+      if (showToast) toast.success('Rapor verileri güncellendi.');
     } catch {
       toast.error('Rapor verileri alınamadı.');
     } finally {
@@ -111,6 +112,23 @@ export default function AdminReportsPage() {
       fetchReports();
     }, 200);
     return () => clearTimeout(timer);
+  }, [search, startDate, endDate, selectedClass, selectedType]);
+
+  // Real-time auto-refresh interval & tab focus listener
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchReports();
+    }, 10000);
+
+    const onFocus = () => {
+      fetchReports();
+    };
+
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [search, startDate, endDate, selectedClass, selectedType]);
 
   const handleExport = (format: 'csv' | 'xlsx' | 'pdf') => {
@@ -134,16 +152,32 @@ export default function AdminReportsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
-            Raporlama & Analiz
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight text-foreground">
+              Raporlama & Analiz
+            </h1>
+            <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Eş Zamanlı Canlı
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground font-medium">
             Tüm ihlal kayıtlarını ve ihlal alan öğrencileri inceleyin, filtreleyin ve PDF / Excel / CSV olarak indirin
           </p>
         </div>
 
-        {/* Export Buttons */}
+        {/* Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            onClick={() => fetchReports(true)}
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+            className="h-9 rounded-xl font-bold border-border hover:bg-muted"
+            title="Verileri anında yenile"
+          >
+            <RotateCcw className={`h-4 w-4 mr-1.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            Yenile
+          </Button>
           <Button
             onClick={() => handleExport('pdf')}
             className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-9 rounded-xl shadow-sm"

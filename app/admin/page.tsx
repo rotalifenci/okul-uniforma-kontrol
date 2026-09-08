@@ -38,27 +38,47 @@ import {
   Legend,
 } from 'recharts';
 import { QrLoginModal } from '@/components/qr-modal';
+import { toast } from 'sonner';
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showQrModal, setShowQrModal] = useState(false);
 
-  useEffect(() => {
-    async function loadStats() {
-      try {
-        const res = await fetch('/api/dashboard');
-        const json = await res.json();
-        if (json.success && json.data) {
-          setStats(json.data);
-        }
-      } catch (error) {
-        console.error('Failed to load dashboard stats:', error);
-      } finally {
-        setIsLoading(false);
+  const loadStats = async (showToast = false) => {
+    try {
+      const res = await fetch(`/api/dashboard?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setStats(json.data);
+        if (showToast) toast.success('Gösterge paneli güncellendi.');
       }
+    } catch (error) {
+      console.error('Failed to load dashboard stats:', error);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadStats();
+
+    const interval = setInterval(() => {
+      loadStats();
+    }, 10000);
+
+    const onFocus = () => {
+      loadStats();
+    };
+
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   if (isLoading) {

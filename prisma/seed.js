@@ -59,8 +59,8 @@ async function main() {
   const mainTeacher = await prisma.user.create({
     data: {
       username: 'sivasmai',
-      name: 'Sivas',
-      surname: 'Nöbetçi Öğretmen',
+      name: 'Nöbetçi',
+      surname: 'Öğretmen',
       role: 'TEACHER',
       password_hash: mainTeacherPassword,
       active: true,
@@ -237,7 +237,7 @@ async function main() {
         data: {
           student_id: createdStudents[0].id,
           teacher_id: createdTeachers[i % createdTeachers.length].id,
-          duty_teacher_name: 'Sivas Nöbetçi Öğretmen',
+          duty_teacher_name: 'Nöbetçi Öğretmen',
           duty_location: 'Ana Giriş Kapısı',
           type: violationTypes[i % 3],
           note: sampleNotes[i % sampleNotes.length],
@@ -256,7 +256,7 @@ async function main() {
         data: {
           student_id: createdStudents[1].id,
           teacher_id: createdTeachers[(i + 1) % createdTeachers.length].id,
-          duty_teacher_name: 'Sivas Nöbetçi Öğretmen',
+          duty_teacher_name: 'Nöbetçi Öğretmen',
           duty_location: 'Zemin Kat Koridor',
           type: violationTypes[1],
           note: sampleNotes[1],
@@ -273,7 +273,7 @@ async function main() {
       data: {
         student_id: createdStudents[2].id,
         teacher_id: createdTeachers[0].id,
-        duty_teacher_name: 'Sivas Nöbetçi Öğretmen',
+        duty_teacher_name: 'Nöbetçi Öğretmen',
         duty_location: 'Ana Giriş Kapısı',
         type: 'CIVIL_CLOTHES',
         note: 'Sivil sweatshirt giyilmiş.',

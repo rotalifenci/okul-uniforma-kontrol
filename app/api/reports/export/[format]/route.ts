@@ -6,6 +6,7 @@ import * as xlsx from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logAuditEvent } from '@/lib/audit';
+import { loadTurkishFont } from '@/lib/pdf-font';
 
 export const dynamic = 'force-dynamic';
 
@@ -131,57 +132,43 @@ export async function GET(
     // 3. PDF Export
     if (format === 'pdf') {
       const doc = new jsPDF();
+      const hasTurkishFont = loadTurkishFont(doc);
+      const fontName = hasTurkishFont ? 'TurkishFont' : 'helvetica';
       const pageWidth = doc.internal.pageSize.getWidth();
 
-      const toPdfText = (str: string | null | undefined) => {
-        if (!str) return '-';
-        return String(str)
-          .replace(/ğ/g, 'g')
-          .replace(/Ğ/g, 'G')
-          .replace(/ş/g, 's')
-          .replace(/Ş/g, 'S')
-          .replace(/ı/g, 'i')
-          .replace(/İ/g, 'I')
-          .replace(/ç/g, 'c')
-          .replace(/Ç/g, 'C')
-          .replace(/ö/g, 'o')
-          .replace(/Ö/g, 'O')
-          .replace(/ü/g, 'u')
-          .replace(/Ü/g, 'U');
-      };
-
       // Header Centered
+      doc.setFont(fontName);
       doc.setFontSize(15);
-      doc.text(toPdfText(schoolName), pageWidth / 2, 16, { align: 'center' });
+      doc.text(schoolName, pageWidth / 2, 16, { align: 'center' });
       doc.setFontSize(11);
-      doc.text(toPdfText('Kılık-Kıyafet & Üniforma Denetim Raporu'), pageWidth / 2, 23, { align: 'center' });
+      doc.text('Kılık-Kıyafet & Üniforma Denetim Raporu', pageWidth / 2, 23, { align: 'center' });
 
       doc.setFontSize(8.5);
       doc.setTextColor(100);
       const dateRangeText = startDate || endDate
-        ? `Tarih Araligi: ${formatDateTR(startDate) || 'Baslangic'} - ${formatDateTR(endDate) || 'Gunumuz'}`
-        : 'Tarih Araligi: Tum Kayitlar';
-      doc.text(`${toPdfText(dateRangeText)} | Toplam IhlaI: ${violations.length} | Rapor Tarihi: ${formatDateTR(new Date())}`, pageWidth / 2, 30, { align: 'center' });
+        ? `Tarih Aralığı: ${formatDateTR(startDate) || 'Başlangıç'} - ${formatDateTR(endDate) || 'Günümüz'}`
+        : 'Tarih Aralığı: Tüm Kayıtlar';
+      doc.text(`${dateRangeText} | Toplam İhlal: ${violations.length} | Rapor Tarihi: ${formatDateTR(new Date())}`, pageWidth / 2, 30, { align: 'center' });
 
-      const headers = [['#', 'Tarih', 'Saat', 'No', 'Adi Soyadi', 'Sinif', 'Ihlal Turu', 'Ogretmen', 'Not']];
+      const headers = [['#', 'Tarih', 'Saat', 'Öğrenci No', 'Adı Soyadı', 'Sınıf', 'İhlal Türü', 'Nöbetçi Öğretmen', 'Not']];
       const rows = tableData.map((d) => [
         d['Sıra'],
         d['Tarih'],
         d['Saat'],
         d['Öğrenci No'],
-        toPdfText(d['Adı Soyadı']),
+        d['Adı Soyadı'],
         d['Sınıf'],
-        toPdfText(d['İhlal Türü']),
-        toPdfText(d['Nöbetçi Öğretmen']),
-        toPdfText(d['Not']),
+        d['İhlal Türü'],
+        d['Nöbetçi Öğretmen'],
+        d['Not'],
       ]);
 
       autoTable(doc, {
         head: headers,
         body: rows,
         startY: 36,
-        styles: { fontSize: 8, cellPadding: 2.5 },
-        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
+        styles: { font: fontName, fontSize: 8, cellPadding: 2.5 },
+        headStyles: { font: fontName, fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [248, 250, 252] },
       });
 

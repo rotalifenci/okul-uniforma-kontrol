@@ -40,21 +40,25 @@ export default function AdminViolationsPage() {
   const [cancelTarget, setCancelTarget] = useState<Violation | null>(null);
   const [cancelReason, setCancelReason] = useState('');
 
-  const fetchViolations = async () => {
+  const fetchViolations = async (showToast = false) => {
     setIsLoading(true);
     try {
-      let url = `/api/violations?page=${page}&limit=${limit}`;
+      let url = `/api/violations?page=${page}&limit=${limit}&_t=${Date.now()}`;
       if (startDate) url += `&startDate=${startDate}`;
       if (endDate) url += `&endDate=${endDate}`;
       if (selectedType) url += `&type=${selectedType}`;
       if (selectedClass) url += `&sinif=${selectedClass}`;
 
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+      });
       const json = await res.json();
       if (json.success && json.data) {
         setViolations(json.data.items);
         setTotal(json.data.total);
         setTotalPages(json.data.totalPages);
+        if (showToast) toast.success('İhlal kayıtları güncellendi.');
       }
     } catch {
       toast.error('Kayıtlar yüklenemedi.');
@@ -65,6 +69,23 @@ export default function AdminViolationsPage() {
 
   useEffect(() => {
     fetchViolations();
+  }, [page, limit, startDate, endDate, selectedType, selectedClass]);
+
+  // Real-time auto-refresh interval & focus listener
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchViolations();
+    }, 10000);
+
+    const onFocus = () => {
+      fetchViolations();
+    };
+
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [page, limit, startDate, endDate, selectedType, selectedClass]);
 
   const handleCancelSubmit = async (e: React.FormEvent) => {
@@ -96,19 +117,38 @@ export default function AdminViolationsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
-            İhlal Kayıtları
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight text-foreground">
+              İhlal Kayıtları
+            </h1>
+            <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Eş Zamanlı Canlı
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground font-medium">
             Öğretmenler tarafından sisteme girilen tüm denetim ve ihlal kayıtları
           </p>
         </div>
 
-        <Link href="/teacher">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 shadow-sm">
-            <AlertTriangle className="h-4 w-4 mr-1.5" /> + Yeni İhlal Gir
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => fetchViolations(true)}
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+            className="h-10 rounded-xl font-bold border-border hover:bg-muted text-xs"
+            title="Verileri anında yenile"
+          >
+            <RotateCcw className={`h-4 w-4 mr-1.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            Yenile
           </Button>
-        </Link>
+
+          <Link href="/teacher">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 shadow-sm">
+              <AlertTriangle className="h-4 w-4 mr-1.5" /> + Yeni İhlal Gir
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filter Card */}

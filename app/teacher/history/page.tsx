@@ -31,7 +31,10 @@ export default function TeacherHistoryPage() {
   const fetchViolations = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/violations?myOnly=true&limit=50');
+      const res = await fetch(`/api/violations?myOnly=true&limit=100&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+      });
       const json = await res.json();
       if (json.success && json.data?.items) {
         setViolations(json.data.items);
@@ -46,6 +49,20 @@ export default function TeacherHistoryPage() {
   useEffect(() => {
     if (user) {
       fetchViolations();
+
+      const interval = setInterval(() => {
+        fetchViolations();
+      }, 10000);
+
+      const onFocus = () => {
+        fetchViolations();
+      };
+
+      window.addEventListener('focus', onFocus);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('focus', onFocus);
+      };
     }
   }, [user]);
 

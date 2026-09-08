@@ -67,13 +67,17 @@ export default function AdminCalendarPage() {
     };
   });
 
-  const fetchCalendar = async (start: string, end: string) => {
+  const fetchCalendar = async (start: string, end: string, showToast = false) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/calendar?startDate=${start}&endDate=${end}`);
+      const res = await fetch(`/api/calendar?startDate=${start}&endDate=${end}&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+      });
       const json = await res.json();
       if (json.success && json.data) {
         setViolations(json.data.violations || []);
+        if (showToast) toast.success('Takvim verileri güncellendi.');
       }
     } catch {
       toast.error('Takvim verileri yüklenemedi.');
@@ -86,16 +90,22 @@ export default function AdminCalendarPage() {
     fetchCalendar(weekStartDate, weekEndDate);
   }, [weekStartDate, weekEndDate]);
 
-  // If viewing this week (offset 0), select today's tab initially if not 'all'
+  // Real-time auto-refresh interval & focus listener
   useEffect(() => {
-    if (weekOffset === 0) {
-      const todayIdx = curDayOfWeek === 0 ? 6 : curDayOfWeek - 1;
-      // Default to 'all' or today
-      setSelectedDay(String(todayIdx));
-    } else {
-      setSelectedDay('all');
-    }
-  }, [weekOffset]);
+    const interval = setInterval(() => {
+      fetchCalendar(weekStartDate, weekEndDate);
+    }, 10000);
+
+    const onFocus = () => {
+      fetchCalendar(weekStartDate, weekEndDate);
+    };
+
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [weekStartDate, weekEndDate]);
 
   const currentSelectedDayObj = selectedDay === 'all' 
     ? null 
@@ -116,16 +126,33 @@ export default function AdminCalendarPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
-            Haftalık Denetim Takvimi
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight text-foreground">
+              Haftalık Denetim Takvimi
+            </h1>
+            <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Eş Zamanlı Canlı
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground font-medium">
             Haftanın günlerine göre kılık-kıyafet kontrol kayıtlarını inceleyin ve geriye/ileriye dönük takip yapın
           </p>
         </div>
 
-        {/* Week Navigation Buttons */}
+        {/* Action & Week Navigation Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            onClick={() => fetchCalendar(weekStartDate, weekEndDate, true)}
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+            className="h-8 rounded-xl font-bold border-border hover:bg-muted text-xs"
+            title="Verileri anında yenile"
+          >
+            <RotateCcw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            Yenile
+          </Button>
+
           <div className="flex items-center bg-muted p-1 rounded-xl">
             <Button
               type="button"
