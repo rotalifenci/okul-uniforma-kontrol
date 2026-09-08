@@ -316,9 +316,9 @@ export default function TeacherPage() {
             )}
           </div>
 
-          {/* Autocomplete Search Dropdown */}
+          {/* Autocomplete Search Dropdown - Floating Overlay (Prevents keypad jumping) */}
           {searchQuery && !selectedStudent && (
-            <div className="mt-2 bg-card border border-border rounded-2xl shadow-xl overflow-hidden divide-y divide-border/60 max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute top-full left-0 right-0 z-50 mt-1.5 bg-card/95 backdrop-blur-md border-2 border-blue-500/40 rounded-2xl shadow-2xl overflow-hidden divide-y divide-border/60 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
               {isSearching ? (
                 <div className="p-4 text-center text-xs text-muted-foreground">
                   Öğrenci aranıyor...
