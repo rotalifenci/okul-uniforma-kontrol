@@ -272,8 +272,8 @@ export default function TeacherPage() {
       />
 
       <main className="flex-1 max-w-lg w-full mx-auto p-3 sm:p-4 space-y-3">
-        {/* Step 1: Rapid Search Box */}
-        <div className="relative z-20">
+        {/* Step 1: Rapid Search Box & Keypad (Fixed layout, no shifting, no overlay blocking) */}
+        <div className="space-y-2.5">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground">
               <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -316,51 +316,56 @@ export default function TeacherPage() {
             )}
           </div>
 
-          {/* Autocomplete Search Dropdown - Floating Overlay (Prevents keypad jumping) */}
-          {searchQuery && !selectedStudent && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1.5 bg-card/95 backdrop-blur-md border-2 border-blue-500/40 rounded-2xl shadow-2xl overflow-hidden divide-y divide-border/60 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-              {isSearching ? (
-                <div className="p-4 text-center text-xs text-muted-foreground">
-                  Öğrenci aranıyor...
-                </div>
-              ) : searchResults.length > 0 ? (
-                searchResults.map((st) => (
-                  <button
-                    key={st.id}
-                    onClick={() => handleSelectStudent(st)}
-                    className="w-full text-left p-3.5 flex items-center justify-between hover:bg-blue-50/70 dark:hover:bg-blue-950/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/60 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold text-sm overflow-hidden flex-shrink-0">
-                        {st.profil_resmi_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={st.profil_resmi_url} alt={st.ad_soyad} className="w-full h-full object-cover" />
-                        ) : (
-                          st.ad_soyad[0]
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-foreground">{st.ad_soyad}</p>
-                        <p className="text-xs text-muted-foreground font-medium">
-                          No: <strong className="text-blue-600 dark:text-blue-400 font-bold">{st.ogrenci_no}</strong> • <span className="font-bold">{st.sinif}-{st.sube}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {st.is_repeat_offender && (
-                        <Badge variant="repeat" className="text-[10px] px-2 py-0.5">
-                          🔴 {st.weekly_violations_count} İhlal
-                        </Badge>
-                      )}
-                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  </button>
-                ))
+          {/* Dedicated Candidate / Prediction Area (Fixed Slot - NEVER covers keypad & NEVER shifts) */}
+          {!selectedStudent && (
+            <div className="min-h-[58px] bg-card rounded-2xl border border-border p-2 flex items-center shadow-sm overflow-hidden">
+              {searchQuery ? (
+                isSearching ? (
+                  <div className="w-full text-center text-xs font-semibold text-muted-foreground animate-pulse">
+                    Öğrenci aranıyor...
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="flex items-center gap-2 overflow-x-auto w-full py-0.5 px-1 scrollbar-thin">
+                    {searchResults.map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => handleSelectStudent(st)}
+                        className="flex-shrink-0 flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900 active:scale-95 transition-all text-left group"
+                      >
+                        <div className="h-8 w-8 rounded-lg bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+                          {st.profil_resmi_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={st.profil_resmi_url} alt={st.ad_soyad} className="w-full h-full object-cover" />
+                          ) : (
+                            st.ogrenci_no
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-foreground group-hover:text-blue-600">
+                              {st.ad_soyad}
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-200/80 dark:bg-blue-900 text-blue-800 dark:text-blue-200 font-extrabold">
+                              {st.sinif}-{st.sube}
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                            No: <strong>{st.ogrenci_no}</strong>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="w-full text-center text-xs font-semibold text-rose-600 dark:text-rose-400">
+                    Eşleşen öğrenci bulunamadı ({searchQuery})
+                  </div>
+                )
               ) : (
-                <div className="p-5 text-center text-muted-foreground">
-                  <p className="text-sm font-semibold">Bu numaraya ait öğrenci bulunamadı.</p>
-                  <p className="text-xs mt-1">Lütfen numarayı veya adı kontrol ediniz.</p>
+                <div className="w-full text-center text-xs font-medium text-muted-foreground flex items-center justify-center gap-1.5">
+                  <span>💡</span>
+                  <span>Numarayı tuşlayın (Örn: 124) veya eşleşen öğrenciye dokunun</span>
                 </div>
               )}
             </div>

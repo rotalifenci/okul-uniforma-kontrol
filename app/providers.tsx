@@ -38,10 +38,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       {children}
       <Toaster
-        position="top-center"
+        position="bottom-center"
         richColors
         closeButton
         duration={3500}
+        className="mb-16 sm:mb-2"
         toastOptions={{
           style: {
             borderRadius: '16px',
