@@ -5,26 +5,32 @@ import { DashboardStats, Violation, Student } from '@/types';
 export class ReportRepository {
   async getDashboardStats(): Promise<DashboardStats> {
     const today = getCurrentIstanbulDate();
-    const todayDateObj = new Date(today);
+    const [y, m, d] = today.split('-').map(Number);
+    const todayDateObj = new Date(y, m - 1, d);
     const dayOfWeek = todayDateObj.getDay();
     const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const mondayObj = new Date(todayDateObj);
-    mondayObj.setDate(todayDateObj.getDate() - distanceToMonday);
-    const mondayStr = mondayObj.toISOString().split('T')[0];
 
-    const fridayObj = new Date(mondayObj);
-    fridayObj.setDate(mondayObj.getDate() + 4);
-    const fridayStr = fridayObj.toISOString().split('T')[0];
+    const mondayObj = new Date(y, m - 1, d - distanceToMonday);
+    const sundayObj = new Date(y, m - 1, d - distanceToMonday + 6);
 
-    // Days Mon-Fri
+    const formatLocal = (dt: Date) => {
+      const yStr = dt.getFullYear();
+      const mStr = String(dt.getMonth() + 1).padStart(2, '0');
+      const dStr = String(dt.getDate()).padStart(2, '0');
+      return `${yStr}-${mStr}-${dStr}`;
+    };
+
+    const mondayStr = formatLocal(mondayObj);
+    const sundayStr = formatLocal(sundayObj);
+
+    // Days Mon-Sun (7 days)
     const weekDays: { day_name: string; date: string }[] = [];
-    const dayNamesTR = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
-    for (let i = 0; i < 5; i++) {
-      const d = new Date(mondayObj);
-      d.setDate(mondayObj.getDate() + i);
+    const dayNamesTR = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+    for (let i = 0; i < 7; i++) {
+      const dayDt = new Date(y, m - 1, d - distanceToMonday + i);
       weekDays.push({
         day_name: dayNamesTR[i],
-        date: d.toISOString().split('T')[0],
+        date: formatLocal(dayDt),
       });
     }
 
@@ -42,7 +48,7 @@ export class ReportRepository {
       }),
       prisma.violation.findMany({
         where: {
-          date: { gte: mondayStr, lte: fridayStr },
+          date: { gte: mondayStr, lte: sundayStr },
           is_cancelled: false,
         },
         include: { student: true, teacher: true },
@@ -202,12 +208,19 @@ export class ReportRepository {
 
   async getClassAnalytics() {
     const today = getCurrentIstanbulDate();
-    const todayDateObj = new Date(today);
+    const [y, m, d] = today.split('-').map(Number);
+    const todayDateObj = new Date(y, m - 1, d);
     const dayOfWeek = todayDateObj.getDay();
     const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const mondayObj = new Date(todayDateObj);
-    mondayObj.setDate(todayDateObj.getDate() - distanceToMonday);
-    const mondayStr = mondayObj.toISOString().split('T')[0];
+    const mondayObj = new Date(y, m - 1, d - distanceToMonday);
+    
+    const formatLocal = (dt: Date) => {
+      const yStr = dt.getFullYear();
+      const mStr = String(dt.getMonth() + 1).padStart(2, '0');
+      const dStr = String(dt.getDate()).padStart(2, '0');
+      return `${yStr}-${mStr}-${dStr}`;
+    };
+    const mondayStr = formatLocal(mondayObj);
 
     const [allStudents, allViolations] = await Promise.all([
       prisma.student.findMany({
@@ -253,16 +266,26 @@ export class ReportRepository {
     allViolations.forEach((v) => {
       if (v.student) {
         const cls = `${v.student.sinif}-${v.student.sube}`;
-        if (classStats[cls]) {
-          classStats[cls].total_violations += 1;
-          classStats[cls].types[v.type] = (classStats[cls].types[v.type] || 0) + 1;
+        if (!classStats[cls]) {
+          classStats[cls] = {
+            sinif: v.student.sinif,
+            sube: v.student.sube,
+            class_name: cls,
+            student_count: 0,
+            total_violations: 0,
+            weekly_violations: 0,
+            repeat_offenders: new Set(),
+            types: {},
+          };
+        }
+        classStats[cls].total_violations += 1;
+        classStats[cls].types[v.type] = (classStats[cls].types[v.type] || 0) + 1;
 
-          if (v.date >= mondayStr && v.date <= today) {
-            classStats[cls].weekly_violations += 1;
-            studentWeeklyCount[v.student_id] = (studentWeeklyCount[v.student_id] || 0) + 1;
-            if (studentWeeklyCount[v.student_id] >= 2) {
-              classStats[cls].repeat_offenders.add(v.student_id);
-            }
+        if (v.date >= mondayStr && v.date <= today) {
+          classStats[cls].weekly_violations += 1;
+          studentWeeklyCount[v.student_id] = (studentWeeklyCount[v.student_id] || 0) + 1;
+          if (studentWeeklyCount[v.student_id] >= 2) {
+            classStats[cls].repeat_offenders.add(v.student_id);
           }
         }
       }

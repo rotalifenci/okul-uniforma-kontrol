@@ -131,26 +131,33 @@ export class ViolationRepository {
   async getWeeklyViolations(startDate?: string, endDate?: string) {
     const today = getCurrentIstanbulDate();
     let mondayStr = startDate;
-    let fridayStr = endDate;
+    let sundayStr = endDate;
 
-    if (!mondayStr || !fridayStr) {
-      const todayDateObj = new Date(today);
-      const dayOfWeek = todayDateObj.getDay();
+    if (!mondayStr || !sundayStr) {
+      const [y, m, d] = today.split('-').map(Number);
+      const todayDateObj = new Date(y, m - 1, d);
+      const dayOfWeek = todayDateObj.getDay(); // 0 is Sunday, 1 is Monday ...
       const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      const mondayObj = new Date(todayDateObj);
-      mondayObj.setDate(todayDateObj.getDate() - distanceToMonday);
-      mondayStr = mondayObj.toISOString().split('T')[0];
+      
+      const mondayObj = new Date(y, m - 1, d - distanceToMonday);
+      const sundayObj = new Date(y, m - 1, d - distanceToMonday + 6);
+      
+      const formatLocal = (dt: Date) => {
+        const yStr = dt.getFullYear();
+        const mStr = String(dt.getMonth() + 1).padStart(2, '0');
+        const dStr = String(dt.getDate()).padStart(2, '0');
+        return `${yStr}-${mStr}-${dStr}`;
+      };
 
-      const fridayObj = new Date(mondayObj);
-      fridayObj.setDate(mondayObj.getDate() + 4);
-      fridayStr = fridayObj.toISOString().split('T')[0];
+      mondayStr = formatLocal(mondayObj);
+      sundayStr = formatLocal(sundayObj);
     }
 
     const violations = await prisma.violation.findMany({
       where: {
         date: {
           gte: mondayStr,
-          lte: fridayStr,
+          lte: sundayStr,
         },
         is_cancelled: false,
       },
@@ -170,7 +177,7 @@ export class ViolationRepository {
 
     return {
       startDate: mondayStr,
-      endDate: fridayStr,
+      endDate: sundayStr,
       violations,
     };
   }

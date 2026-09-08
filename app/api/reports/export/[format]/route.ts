@@ -21,6 +21,7 @@ export async function GET(
 
     const { format } = params;
     const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search')?.trim() || undefined;
     const startDate = searchParams.get('startDate') || undefined;
     const endDate = searchParams.get('endDate') || undefined;
     const sinif = searchParams.get('sinif') || undefined;
@@ -40,10 +41,16 @@ export async function GET(
     if (type) where.type = type;
     if (teacher_id) where.teacher_id = teacher_id;
 
-    if (sinif || sube) {
+    if (sinif || sube || search) {
       where.student = {};
       if (sinif) where.student.sinif = sinif;
       if (sube) where.student.sube = sube;
+      if (search) {
+        where.student.OR = [
+          { ogrenci_no: { contains: search } },
+          { ad_soyad: { contains: search } },
+        ];
+      }
     }
 
     const violations = await prisma.violation.findMany({
