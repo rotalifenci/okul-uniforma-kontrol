@@ -133,39 +133,57 @@ export async function GET(
     if (format === 'pdf') {
       const doc = new jsPDF();
 
-      // Header
-      doc.setFontSize(16);
-      doc.text(schoolName, 14, 18);
-      doc.setFontSize(12);
-      doc.text('Kılık-Kıyafet & Üniforma Denetim Raporu', 14, 25);
+      const toPdfText = (str: string | null | undefined) => {
+        if (!str) return '-';
+        return String(str)
+          .replace(/ğ/g, 'g')
+          .replace(/Ğ/g, 'G')
+          .replace(/ş/g, 's')
+          .replace(/Ş/g, 'S')
+          .replace(/ı/g, 'i')
+          .replace(/İ/g, 'I')
+          .replace(/ç/g, 'c')
+          .replace(/Ç/g, 'C')
+          .replace(/ö/g, 'o')
+          .replace(/Ö/g, 'O')
+          .replace(/ü/g, 'u')
+          .replace(/Ü/g, 'U');
+      };
 
-      doc.setFontSize(9);
+      // Header
+      doc.setFontSize(15);
+      doc.text(toPdfText(schoolName), 14, 18);
+      doc.setFontSize(11);
+      doc.text(toPdfText('Kılık-Kıyafet & Üniforma Denetim Raporu'), 14, 25);
+
+      doc.setFontSize(8.5);
       doc.setTextColor(100);
       const dateRangeText = startDate || endDate
-        ? `Tarih Aralığı: ${formatDateTR(startDate) || 'Başlangıç'} - ${formatDateTR(endDate) || 'Günümüz'}`
-        : 'Tarih Aralığı: Tüm Kayıtlar';
-      doc.text(`${dateRangeText} | Toplam İhlal: ${violations.length} | Rapor Tarihi: ${formatDateTR(new Date())}`, 14, 32);
+        ? `Tarih Araligi: ${formatDateTR(startDate) || 'Baslangic'} - ${formatDateTR(endDate) || 'Gunumuz'}`
+        : 'Tarih Araligi: Tum Kayitlar';
+      doc.text(`${toPdfText(dateRangeText)} | Toplam IhlaI: ${violations.length} | Rapor Tarihi: ${formatDateTR(new Date())}`, 14, 32);
 
-      const headers = [['#', 'Tarih', 'Saat', 'No', 'Ad Soyad', 'Sınıf', 'İhlal Türü', 'Öğretmen', 'Nöbet Yeri', 'Not']];
+      const headers = [['#', 'Tarih', 'Saat', 'No', 'Adi Soyadi', 'Sinif', 'Ihlal Turu', 'Ogretmen', 'Nobet Yeri', 'Not']];
       const rows = tableData.map((d) => [
         d['Sıra'],
         d['Tarih'],
         d['Saat'],
         d['Öğrenci No'],
-        d['Adı Soyadı'],
+        toPdfText(d['Adı Soyadı']),
         d['Sınıf'],
-        d['İhlal Türü'],
-        d['Nöbetçi Öğretmen'],
-        d['Nöbet Yeri'],
-        d['Not'],
+        toPdfText(d['İhlal Türü']),
+        toPdfText(d['Nöbetçi Öğretmen']),
+        toPdfText(d['Nöbet Yeri']),
+        toPdfText(d['Not']),
       ]);
 
       autoTable(doc, {
         head: headers,
         body: rows,
         startY: 38,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [30, 58, 138] },
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
       });
 
       const pdfBuffer = doc.output('arraybuffer');

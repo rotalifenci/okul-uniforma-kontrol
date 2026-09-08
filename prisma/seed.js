@@ -184,7 +184,8 @@ async function main() {
 
   console.log(`Successfully created ${createdStudents.length} real students from ${path.basename(excelPath)} (8/A)!`);
 
-  // 6. Sample Violations for the real students
+  // 6. Sample Violations for the real students (only past or today, NEVER future)
+  const todayStr = new Date().toISOString().split('T')[0];
   const now = new Date();
   const dayOfWeek = now.getDay();
   const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -192,10 +193,17 @@ async function main() {
   mondayObj.setDate(now.getDate() - distanceToMonday);
 
   const dates = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i <= distanceToMonday; i++) {
     const d = new Date(mondayObj);
     d.setDate(mondayObj.getDate() + i);
-    dates.push(d.toISOString().split('T')[0]);
+    const dStr = d.toISOString().split('T')[0];
+    if (dStr <= todayStr) {
+      dates.push(dStr);
+    }
+  }
+
+  if (dates.length === 0) {
+    dates.push(todayStr);
   }
 
   const violationTypes = [
@@ -222,43 +230,45 @@ async function main() {
 
   // Let's create realistic violations for students from sınıf.xlsx
   if (createdStudents.length >= 3) {
-    // Student 0 (AHMET BAŞER - 290)
-    for (let dayIdx = 0; dayIdx < 3; dayIdx++) {
+    // Student 0 (Ahmet Yılmaz)
+    const ahmetDates = dates.length > 1 ? [dates[0], dates[dates.length - 1]] : [dates[0]];
+    for (let i = 0; i < ahmetDates.length; i++) {
       await prisma.violation.create({
         data: {
           student_id: createdStudents[0].id,
-          teacher_id: createdTeachers[dayIdx % createdTeachers.length].id,
+          teacher_id: createdTeachers[i % createdTeachers.length].id,
           duty_teacher_name: 'Sivas Nöbetçi Öğretmen',
           duty_location: 'Ana Giriş Kapısı',
-          type: violationTypes[dayIdx % 3],
-          note: sampleNotes[dayIdx % sampleNotes.length],
-          date: dates[dayIdx],
-          time: sampleTimes[dayIdx],
-          client_transaction_id: `seed-sinif-${createdStudents[0].id}-${dayIdx}`,
+          type: violationTypes[i % 3],
+          note: sampleNotes[i % sampleNotes.length],
+          date: ahmetDates[i],
+          time: sampleTimes[i],
+          client_transaction_id: `seed-sinif-${createdStudents[0].id}-${i}`,
         },
       });
       violationCount++;
     }
 
-    // Student 1 (ELİF NUR ÇAŞUT - 363)
-    for (let dayIdx = 0; dayIdx < 2; dayIdx++) {
+    // Student 1 (Mehmet Demir)
+    const mehmetDates = dates.length > 1 ? [dates[0], dates[dates.length - 1]] : [dates[0]];
+    for (let i = 0; i < mehmetDates.length; i++) {
       await prisma.violation.create({
         data: {
           student_id: createdStudents[1].id,
-          teacher_id: createdTeachers[(dayIdx + 1) % createdTeachers.length].id,
+          teacher_id: createdTeachers[(i + 1) % createdTeachers.length].id,
           duty_teacher_name: 'Sivas Nöbetçi Öğretmen',
           duty_location: 'Zemin Kat Koridor',
           type: violationTypes[1],
           note: sampleNotes[1],
-          date: dates[dayIdx],
-          time: sampleTimes[dayIdx + 1],
-          client_transaction_id: `seed-sinif-${createdStudents[1].id}-${dayIdx}`,
+          date: mehmetDates[i],
+          time: sampleTimes[i + 1],
+          client_transaction_id: `seed-sinif-${createdStudents[1].id}-${i}`,
         },
       });
       violationCount++;
     }
 
-    // Student 2 (ZEYNEP KAYA - 475)
+    // Student 2 (Mustafa Kaya)
     await prisma.violation.create({
       data: {
         student_id: createdStudents[2].id,
