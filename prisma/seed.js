@@ -184,25 +184,34 @@ async function main() {
 
   console.log(`Successfully created ${createdStudents.length} real students from ${path.basename(excelPath)} (8/A)!`);
 
-  // 6. Sample Violations for the real students (only past or today, NEVER future)
-  const todayStr = new Date().toISOString().split('T')[0];
+  // 6. Sample Violations for the real students (guarantee today and past days of the week)
   const now = new Date();
-  const dayOfWeek = now.getDay();
+  const istanbulFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const todayStr = istanbulFormatter.format(now); // YYYY-MM-DD
+
+  const [curY, curM, curD] = todayStr.split('-').map(Number);
+  const curDateObj = new Date(curY, curM - 1, curD);
+  const dayOfWeek = curDateObj.getDay();
   const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const mondayObj = new Date(now);
-  mondayObj.setDate(now.getDate() - distanceToMonday);
 
   const dates = [];
   for (let i = 0; i <= distanceToMonday; i++) {
-    const d = new Date(mondayObj);
-    d.setDate(mondayObj.getDate() + i);
-    const dStr = d.toISOString().split('T')[0];
-    if (dStr <= todayStr) {
-      dates.push(dStr);
+    const d = new Date(curY, curM - 1, curD - distanceToMonday + i);
+    const yStr = d.getFullYear();
+    const mStr = String(d.getMonth() + 1).padStart(2, '0');
+    const dStr = String(d.getDate()).padStart(2, '0');
+    const formatted = `${yStr}-${mStr}-${dStr}`;
+    if (formatted <= todayStr) {
+      dates.push(formatted);
     }
   }
 
-  if (dates.length === 0) {
+  if (!dates.includes(todayStr)) {
     dates.push(todayStr);
   }
 
@@ -277,7 +286,7 @@ async function main() {
         duty_location: 'Ana Giriş Kapısı',
         type: 'CIVIL_CLOTHES',
         note: 'Sivil sweatshirt giyilmiş.',
-        date: dates[0],
+        date: todayStr,
         time: '08:30',
         client_transaction_id: `seed-sinif-${createdStudents[2].id}-0`,
       },
