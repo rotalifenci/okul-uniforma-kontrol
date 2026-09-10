@@ -103,21 +103,26 @@ export default function TeacherPage() {
     // 1. Instant Synchronous Memory Match (0ms latency)
     if (allStudentsCacheRef.current.length > 0) {
       const qLower = trimmed.toLowerCase();
-      const memMatches = allStudentsCacheRef.current.filter((st) =>
-        st.ogrenci_no.startsWith(trimmed) ||
-        st.ad_soyad.toLowerCase().includes(qLower)
-      );
+      const memMatches = allStudentsCacheRef.current
+        .filter((st) =>
+          st.ogrenci_no.startsWith(trimmed) ||
+          st.ad_soyad.toLowerCase().includes(qLower)
+        )
+        .sort((a, b) => {
+          // Exact number match comes first
+          if (a.ogrenci_no === trimmed) return -1;
+          if (b.ogrenci_no === trimmed) return 1;
+          // Shorter numbers first
+          if (a.ogrenci_no.startsWith(trimmed) && b.ogrenci_no.startsWith(trimmed)) {
+            return a.ogrenci_no.length - b.ogrenci_no.length;
+          }
+          return 0;
+        });
 
       if (memMatches.length > 0) {
-        setSearchResults(memMatches.slice(0, 8));
+        setSearchResults(memMatches.slice(0, 10));
         setIsSearching(false);
-
-        // Auto-select immediately if exact single match or exact student number
-        const exactNoMatch = memMatches.find((s) => s.ogrenci_no === trimmed);
-        if (exactNoMatch && /^\d+$/.test(trimmed)) {
-          setSelectedStudent(exactNoMatch);
-          return;
-        }
+        return;
       }
     }
 
@@ -125,15 +130,11 @@ export default function TeacherPage() {
 
     if (isOnline) {
       try {
-        const res = await fetch(`/api/students/search?q=${encodeURIComponent(trimmed)}&limit=8`);
+        const res = await fetch(`/api/students/search?q=${encodeURIComponent(trimmed)}&limit=10`);
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
           setSearchResults(json.data);
           cacheStudentsLocally(json.data);
-
-          if (json.data.length === 1 && /^\d+$/.test(trimmed) && json.data[0].ogrenci_no === trimmed) {
-            setSelectedStudent(json.data[0]);
-          }
         }
       } catch (e) {
         const local = await searchLocalStudents(trimmed);
@@ -145,9 +146,6 @@ export default function TeacherPage() {
       const local = await searchLocalStudents(trimmed);
       setSearchResults(local);
       setIsSearching(false);
-      if (local.length === 1 && /^\d+$/.test(trimmed) && local[0].ogrenci_no === trimmed) {
-        setSelectedStudent(local[0]);
-      }
     }
   }, [isOnline]);
 
@@ -359,36 +357,47 @@ export default function TeacherPage() {
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="flex items-center gap-2 overflow-x-auto w-full py-0.5 px-1 scrollbar-thin">
-                    {searchResults.map((st) => (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => handleSelectStudent(st)}
-                        className="flex-shrink-0 flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900 active:scale-95 transition-all text-left group"
-                      >
-                        <div className="h-8 w-8 rounded-lg bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
-                          {st.profil_resmi_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={st.profil_resmi_url} alt={st.ad_soyad} className="w-full h-full object-cover" />
-                          ) : (
-                            st.ogrenci_no
-                          )}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-black text-foreground group-hover:text-blue-600">
-                              {st.ad_soyad}
-                            </span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-200/80 dark:bg-blue-900 text-blue-800 dark:text-blue-200 font-extrabold">
-                              {st.sinif}-{st.sube}
-                            </span>
+                    {searchResults.map((st) => {
+                      const isExactNo = st.ogrenci_no === searchQuery.trim();
+                      return (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => handleSelectStudent(st)}
+                          className={`flex-shrink-0 flex items-center gap-2.5 px-3.5 py-2 rounded-xl border transition-all text-left group active:scale-95 ${
+                            isExactNo
+                              ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400 dark:ring-blue-600'
+                              : 'bg-blue-50 dark:bg-blue-950/70 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900'
+                          }`}
+                        >
+                          <div className={`h-8 w-8 rounded-lg font-extrabold text-xs flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm ${
+                            isExactNo ? 'bg-white text-blue-700' : 'bg-blue-600 text-white'
+                          }`}>
+                            {st.profil_resmi_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={st.profil_resmi_url} alt={st.ad_soyad} className="w-full h-full object-cover" />
+                            ) : (
+                              st.ogrenci_no
+                            )}
                           </div>
-                          <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
-                            No: <strong>{st.ogrenci_no}</strong>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs font-black ${isExactNo ? 'text-white' : 'text-foreground group-hover:text-blue-600'}`}>
+                                {st.ad_soyad}
+                              </span>
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${
+                                isExactNo ? 'bg-white/20 text-white' : 'bg-blue-200/80 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                              }`}>
+                                {st.sinif}-{st.sube}
+                              </span>
+                            </div>
+                            <div className={`text-[11px] font-bold ${isExactNo ? 'text-blue-100' : 'text-blue-600 dark:text-blue-400'}`}>
+                              No: <strong>{st.ogrenci_no}</strong> {isExactNo && <span className="ml-1 text-[10px] bg-white/30 px-1.5 py-0.2 rounded">DOKUN VE SEÇ ➔</span>}
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="w-full text-center text-xs font-semibold text-rose-600 dark:text-rose-400">
