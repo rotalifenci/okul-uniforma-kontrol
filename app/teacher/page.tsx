@@ -55,6 +55,20 @@ export default function TeacherPage() {
   } | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const allStudentsCacheRef = useRef<Student[]>([]);
+
+  // Preload students into memory cache for 0ms instantaneous keypad search
+  useEffect(() => {
+    fetch('/api/students/search?q=&limit=300')
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          allStudentsCacheRef.current = json.data;
+          cacheStudentsLocally(json.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Detect touch device to prevent mobile soft keyboard popup
   useEffect(() => {
@@ -77,13 +91,34 @@ export default function TeacherPage() {
     }
   }, [user, authLoading, router]);
 
-  // Debounced student search
+  // High-speed student search (Memory first -> Network fallback)
   const performSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
     if (!trimmed) {
       setSearchResults([]);
       setIsSearching(false);
       return;
+    }
+
+    // 1. Instant Synchronous Memory Match (0ms latency)
+    if (allStudentsCacheRef.current.length > 0) {
+      const qLower = trimmed.toLowerCase();
+      const memMatches = allStudentsCacheRef.current.filter((st) =>
+        st.ogrenci_no.startsWith(trimmed) ||
+        st.ad_soyad.toLowerCase().includes(qLower)
+      );
+
+      if (memMatches.length > 0) {
+        setSearchResults(memMatches.slice(0, 8));
+        setIsSearching(false);
+
+        // Auto-select immediately if exact single match or exact student number
+        const exactNoMatch = memMatches.find((s) => s.ogrenci_no === trimmed);
+        if (exactNoMatch && /^\d+$/.test(trimmed)) {
+          setSelectedStudent(exactNoMatch);
+          return;
+        }
+      }
     }
 
     setIsSearching(true);
@@ -117,9 +152,10 @@ export default function TeacherPage() {
   }, [isOnline]);
 
   useEffect(() => {
+    // 50ms fast debounce
     const timer = setTimeout(() => {
       performSearch(searchQuery);
-    }, 180);
+    }, 50);
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
@@ -142,52 +178,83 @@ export default function TeacherPage() {
     }, 50);
   };
 
+  // Ultra-Fast Optimistic Recording: Instantly frees the keypad for the next student
   const handleRecordViolation = async (type: string, allowDuplicate = false) => {
-    if (!selectedStudent || isSubmitting) return;
+    if (!selectedStudent) return;
 
-    setIsSubmitting(true);
+    const studentToRecord = selectedStudent;
+    const noteToRecord = note.trim();
+    const studentName = studentToRecord.ad_soyad;
+    const typeLabel = VIOLATION_TYPE_MAP[type]?.label || type;
     const client_tx_id = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const today = getCurrentIstanbulDate();
     const time = getCurrentIstanbulTime();
-    const activeTeacherName = user ? `${user.name} ${user.surname}` : 'Nöbetçi Öğretmen';
 
+    // 1. Instant Haptic Feedback
     if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate(30);
+      navigator.vibrate(40);
     }
 
+    // 2. INSTANT OPTIMISTIC RESET: Keypad is instantly ready for the next student without waiting for network!
+    handleReset();
+
+    // 3. Show instant success toast with Undo option
+    let createdViolationId: string | null = null;
+    const toastId = toast.success(
+      <div className="flex items-center justify-between gap-3 w-full">
+        <div>
+          <p className="font-bold text-sm">İhlal kaydedildi</p>
+          <p className="text-xs text-muted-foreground">{studentName} • {typeLabel}</p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            if (createdViolationId) {
+              try {
+                await fetch(`/api/violations/${createdViolationId}`, {
+                  method: 'DELETE',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ reason: 'Öğretmen hızlı geri alma butonuna bastı.' }),
+                });
+                toast.info('İhlal kaydı geri alındı.');
+              } catch {
+                toast.error('Geri alma işlemi başarısız.');
+              }
+            }
+          }}
+          className="h-8 px-3 text-xs font-bold border-slate-300 dark:border-slate-700 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+        >
+          <RotateCcw className="h-3 w-3 mr-1" /> Geri Al
+        </Button>
+      </div>,
+      { duration: 4500 }
+    );
+
+    // 4. Offline queue handling
     if (!isOnline) {
       await queueViolation({
         client_transaction_id: client_tx_id,
-        student_id: selectedStudent.id,
-        student_no: selectedStudent.ogrenci_no,
-        student_name: selectedStudent.ad_soyad,
+        student_id: studentToRecord.id,
+        student_no: studentToRecord.ogrenci_no,
+        student_name: studentToRecord.ad_soyad,
         type,
-        note: note.trim() || undefined,
+        note: noteToRecord || undefined,
         date: today,
         time,
       });
-
-      const studentName = selectedStudent.ad_soyad;
-      toast.success(
-        <div className="flex flex-col gap-1">
-          <span className="font-bold">Çevrimdışı Kaydedildi (Kuyruğa Eklendi)</span>
-          <span className="text-xs text-muted-foreground">{studentName} - {VIOLATION_TYPE_MAP[type]?.label || type}</span>
-        </div>
-      );
-
-      handleReset();
-      setIsSubmitting(false);
       return;
     }
 
+    // 5. Background Async Server Recording
     try {
       const res = await fetch('/api/violations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          student_id: selectedStudent.id,
+          student_id: studentToRecord.id,
           type,
-          note: note.trim() || undefined,
+          note: noteToRecord || undefined,
           date: today,
           time,
           client_transaction_id: client_tx_id,
@@ -198,57 +265,22 @@ export default function TeacherPage() {
       const json = await res.json();
 
       if (res.status === 409 && json.error?.code === 'DUPLICATE_VIOLATION_TODAY') {
+        toast.dismiss(toastId);
         setDuplicateWarning({
           type,
-          student: selectedStudent,
+          student: studentToRecord,
           message: json.message || 'Bu öğrenci için bugün aynı ihlal zaten kaydedilmiş.',
         });
-        setIsSubmitting(false);
         return;
       }
 
       if (json.success && json.data) {
-        const createdViolationId = json.data.id;
-        const studentName = selectedStudent.ad_soyad;
-        const typeLabel = VIOLATION_TYPE_MAP[type]?.label || type;
-
-        toast.success(
-          <div className="flex items-center justify-between gap-3 w-full">
-            <div>
-              <p className="font-bold text-sm">İhlal kaydedildi</p>
-              <p className="text-xs text-muted-foreground">{studentName} • {typeLabel}</p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                try {
-                  await fetch(`/api/violations/${createdViolationId}`, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reason: 'Öğretmen hızlı geri alma butonuna bastı.' }),
-                  });
-                  toast.info('İhlal kaydı geri alındı.');
-                } catch {
-                  toast.error('Geri alma işlemi başarısız.');
-                }
-              }}
-              className="h-8 px-3 text-xs font-bold border-slate-300 dark:border-slate-700 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
-            >
-              <RotateCcw className="h-3 w-3 mr-1" /> Geri Al
-            </Button>
-          </div>,
-          { duration: 5000 }
-        );
-
-        handleReset();
+        createdViolationId = json.data.id;
       } else {
         toast.error(json.message || 'İhlal kaydedilirken bir hata oluştu.');
       }
     } catch (error) {
-      toast.error('Sunucu ile iletişim kurulamadı.');
-    } finally {
-      setIsSubmitting(false);
+      console.error('Violations error:', error);
     }
   };
 
@@ -455,9 +487,8 @@ export default function TeacherPage() {
               <div className="grid grid-cols-1 gap-2.5">
                 <button
                   type="button"
-                  disabled={isSubmitting}
                   onClick={() => handleRecordViolation('UPPER_UNIFORM_MISSING')}
-                  className="h-16 w-full rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white shadow-md transition-all flex items-center justify-between px-5 font-extrabold text-base disabled:opacity-50"
+                  className="h-16 w-full rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white shadow-md transition-all flex items-center justify-between px-5 font-extrabold text-base"
                 >
                   <div className="flex items-center gap-3.5">
                     <div className="p-2 bg-white/20 rounded-xl">
@@ -470,9 +501,8 @@ export default function TeacherPage() {
 
                 <button
                   type="button"
-                  disabled={isSubmitting}
                   onClick={() => handleRecordViolation('LOWER_UNIFORM_MISSING')}
-                  className="h-16 w-full rounded-2xl bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white shadow-md transition-all flex items-center justify-between px-5 font-extrabold text-base disabled:opacity-50"
+                  className="h-16 w-full rounded-2xl bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white shadow-md transition-all flex items-center justify-between px-5 font-extrabold text-base"
                 >
                   <div className="flex items-center gap-3.5">
                     <div className="p-2 bg-white/20 rounded-xl">
@@ -485,24 +515,8 @@ export default function TeacherPage() {
 
                 <button
                   type="button"
-                  disabled={isSubmitting}
-                  onClick={() => handleRecordViolation('PHYSICAL_EDUCATION_UNIFORM')}
-                  className="h-16 w-full rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white shadow-md transition-all flex items-center justify-between px-5 font-extrabold text-base disabled:opacity-50"
-                >
-                  <div className="flex items-center gap-3.5">
-                    <div className="p-2 bg-white/20 rounded-xl">
-                      <Activity className="h-6 w-6" />
-                    </div>
-                    <span>BEDEN EĞİTİMİ EŞOFMAN İHLALİ</span>
-                  </div>
-                  <span className="text-xs bg-white/25 px-2.5 py-1 rounded-lg">KAYDET</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isSubmitting}
                   onClick={() => handleRecordViolation('CIVIL_CLOTHES')}
-                  className="h-16 w-full rounded-2xl bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white shadow-md transition-all flex items-center justify-between px-5 font-extrabold text-base disabled:opacity-50"
+                  className="h-16 w-full rounded-2xl bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white shadow-md transition-all flex items-center justify-between px-5 font-extrabold text-base"
                 >
                   <div className="flex items-center gap-3.5">
                     <div className="p-2 bg-white/20 rounded-xl">
@@ -515,9 +529,8 @@ export default function TeacherPage() {
 
                 <button
                   type="button"
-                  disabled={isSubmitting}
                   onClick={() => handleRecordViolation('OTHER')}
-                  className="h-14 w-full rounded-2xl bg-slate-700 hover:bg-slate-800 active:scale-[0.98] text-white shadow transition-all flex items-center justify-between px-5 font-bold text-sm disabled:opacity-50"
+                  className="h-14 w-full rounded-2xl bg-slate-700 hover:bg-slate-800 active:scale-[0.98] text-white shadow transition-all flex items-center justify-between px-5 font-bold text-sm"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-1.5 bg-white/20 rounded-lg">
@@ -526,6 +539,20 @@ export default function TeacherPage() {
                     <span>DİĞER KILIK-KIYAFET İHLALİ</span>
                   </div>
                   <span className="text-xs bg-white/20 px-2 py-0.5 rounded">KAYDET</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleRecordViolation('PHYSICAL_EDUCATION_UNIFORM')}
+                  className="h-16 w-full rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white shadow-md transition-all flex items-center justify-between px-5 font-extrabold text-base"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="p-2 bg-white/20 rounded-xl">
+                      <Activity className="h-6 w-6" />
+                    </div>
+                    <span>BEDEN EĞİTİMİ EŞOFMAN İHLALİ</span>
+                  </div>
+                  <span className="text-xs bg-white/25 px-2.5 py-1 rounded-lg">KAYDET</span>
                 </button>
               </div>
 

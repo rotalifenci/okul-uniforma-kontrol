@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 
 const schemaPath = path.join(__dirname, '..', 'prisma', 'schema.prisma');
@@ -9,10 +9,10 @@ const isPostgres = dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgres
 
 if (isPostgres) {
   console.log('🔄 Configuring Prisma for PostgreSQL cloud database...');
-  schema = schema.replace(/provider\s*=\s*sqlite/g, 'provider = postgresql');
+  schema = schema.replace(/provider\s*=\s*["']?(sqlite|postgresql)["']?/g, 'provider = "postgresql"');
 } else {
   console.log('🔄 Configuring Prisma for local SQLite database...');
-  schema = schema.replace(/provider\s*=\s*postgresql/g, 'provider = sqlite');
+  schema = schema.replace(/provider\s*=\s*["']?(sqlite|postgresql)["']?/g, 'provider = "sqlite"');
 }
 
 fs.writeFileSync(schemaPath, schema, 'utf8');
