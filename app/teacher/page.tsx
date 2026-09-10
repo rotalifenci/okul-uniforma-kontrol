@@ -157,28 +157,22 @@ export default function TeacherPage() {
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
-  // Auto-open student DIRECTLY when teacher finishes typing the number (320ms idle)
+  // Auto-open student DIRECTLY only when the number is unambiguous (no other student number starts with this prefix, e.g. "36")
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (!trimmed || selectedStudent || !/^\d+$/.test(trimmed)) return;
 
-    const timer = setTimeout(() => {
-      if (allStudentsCacheRef.current.length > 0) {
-        const exactMatch = allStudentsCacheRef.current.find((s) => s.ogrenci_no === trimmed);
-        if (exactMatch) {
-          setSelectedStudent(exactMatch);
-          setSearchResults([]);
-        }
-      } else if (searchResults.length > 0) {
-        const exactMatch = searchResults.find((s) => s.ogrenci_no === trimmed);
-        if (exactMatch) {
-          setSelectedStudent(exactMatch);
-          setSearchResults([]);
-        }
-      }
-    }, 320);
+    const students = allStudentsCacheRef.current.length > 0 ? allStudentsCacheRef.current : searchResults;
+    if (students.length === 0) return;
 
-    return () => clearTimeout(timer);
+    // Check all students starting with this prefix
+    const prefixMatches = students.filter((s) => s.ogrenci_no.startsWith(trimmed));
+
+    // If only 1 student in the school starts with this prefix and it is an exact match (e.g. "36", "53")
+    if (prefixMatches.length === 1 && prefixMatches[0].ogrenci_no === trimmed) {
+      setSelectedStudent(prefixMatches[0]);
+      setSearchResults([]);
+    }
   }, [searchQuery, selectedStudent, searchResults]);
 
   const handleSelectStudent = (student: Student) => {
@@ -350,8 +344,15 @@ export default function TeacherPage() {
                 if (selectedStudent) setSelectedStudent(null);
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchResults.length > 0) {
-                  handleSelectStudent(searchResults[0]);
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const trimmed = searchQuery.trim();
+                  if (!trimmed) return;
+                  const pool = allStudentsCacheRef.current.length > 0 ? allStudentsCacheRef.current : searchResults;
+                  const exact = pool.find((s) => s.ogrenci_no === trimmed) || searchResults[0];
+                  if (exact) {
+                    handleSelectStudent(exact);
+                  }
                 }
               }}
               className="h-14 pl-11 pr-20 text-lg font-semibold rounded-2xl shadow-sm border-blue-200 dark:border-blue-900 focus-visible:ring-blue-600 bg-card cursor-pointer sm:cursor-text"
