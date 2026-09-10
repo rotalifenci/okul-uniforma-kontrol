@@ -150,12 +150,36 @@ export default function TeacherPage() {
   }, [isOnline]);
 
   useEffect(() => {
-    // 50ms fast debounce
+    // 50ms fast debounce for search prediction
     const timer = setTimeout(() => {
       performSearch(searchQuery);
     }, 50);
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
+
+  // Auto-open student DIRECTLY when teacher finishes typing the number (320ms idle)
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed || selectedStudent || !/^\d+$/.test(trimmed)) return;
+
+    const timer = setTimeout(() => {
+      if (allStudentsCacheRef.current.length > 0) {
+        const exactMatch = allStudentsCacheRef.current.find((s) => s.ogrenci_no === trimmed);
+        if (exactMatch) {
+          setSelectedStudent(exactMatch);
+          setSearchResults([]);
+        }
+      } else if (searchResults.length > 0) {
+        const exactMatch = searchResults.find((s) => s.ogrenci_no === trimmed);
+        if (exactMatch) {
+          setSelectedStudent(exactMatch);
+          setSearchResults([]);
+        }
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, selectedStudent, searchResults]);
 
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
@@ -392,7 +416,7 @@ export default function TeacherPage() {
                               </span>
                             </div>
                             <div className={`text-[11px] font-bold ${isExactNo ? 'text-blue-100' : 'text-blue-600 dark:text-blue-400'}`}>
-                              No: <strong>{st.ogrenci_no}</strong> {isExactNo && <span className="ml-1 text-[10px] bg-white/30 px-1.5 py-0.2 rounded">DOKUN VE SEÇ ➔</span>}
+                              No: <strong>{st.ogrenci_no}</strong>
                             </div>
                           </div>
                         </button>

@@ -6,48 +6,51 @@ const path = require('path');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding database with updated sınıf.xlsx (8/A)...');
+  console.log('Synchronizing database schema and records safely...');
 
-  // 1. Clean existing data
-  await prisma.auditLog.deleteMany();
-  await prisma.qrSession.deleteMany();
-  await prisma.violation.deleteMany();
-  await prisma.student.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.violationType.deleteMany();
-  await prisma.systemSetting.deleteMany();
+  // 1. Safe System Settings (upsert)
+  const defaultSettings = [
+    { key: 'school_name', value: 'Sivas Mehmet Akif İnan Ortaokulu' },
+    { key: 'school_logo_url', value: '/logo.png' },
+    { key: 'repeat_violation_threshold', value: '2' },
+    { key: 'special_followup_threshold', value: '3' },
+    { key: 'qr_validity_seconds', value: '60' },
+    { key: 'day_closure_time', value: '17:00' },
+  ];
+  for (const s of defaultSettings) {
+    await prisma.systemSetting.upsert({
+      where: { key: s.key },
+      update: {},
+      create: s,
+    });
+  }
 
-  // 2. Default System Settings
-  await prisma.systemSetting.createMany({
-    data: [
-      { key: 'school_name', value: 'Sivas Mehmet Akif İnan Ortaokulu' },
-      { key: 'school_logo_url', value: '/logo.png' },
-      { key: 'repeat_violation_threshold', value: '2' },
-      { key: 'special_followup_threshold', value: '3' },
-      { key: 'qr_validity_seconds', value: '60' },
-      { key: 'day_closure_time', value: '17:00' },
-    ],
-  });
+  // 2. Safe Violation Types (upsert)
+  const defaultTypes = [
+    { code: 'UPPER_UNIFORM_MISSING', name: 'Üst Forma Eksik', color: '#f59e0b', icon: 'Shirt', sort_order: 1 },
+    { code: 'LOWER_UNIFORM_MISSING', name: 'Alt Forma Eksik', color: '#f97316', icon: 'Scissors', sort_order: 2 },
+    { code: 'PHYSICAL_EDUCATION_UNIFORM', name: 'Beden Eğitimi Eşofman İhlali', color: '#4f46e5', icon: 'Activity', sort_order: 3 },
+    { code: 'CIVIL_CLOTHES', name: 'Tamamen Sivil / Uygunsuz', color: '#e11d48', icon: 'UserX', sort_order: 4 },
+    { code: 'INAPPROPRIATE_CLOTHING', name: 'Kılık-Kıyafet Uygunsuz', color: '#9333ea', icon: 'AlertCircle', sort_order: 5 },
+    { code: 'OTHER', name: 'Diğer İhlal', color: '#475569', icon: 'MoreHorizontal', sort_order: 6 },
+  ];
+  for (const t of defaultTypes) {
+    await prisma.violationType.upsert({
+      where: { code: t.code },
+      update: { name: t.name, color: t.color, icon: t.icon, sort_order: t.sort_order },
+      create: t,
+    });
+  }
 
-  // 3. Violation Types
-  await prisma.violationType.createMany({
-    data: [
-      { code: 'UPPER_UNIFORM_MISSING', name: 'Üst Forma Eksik', color: '#f59e0b', icon: 'Shirt', sort_order: 1 },
-      { code: 'LOWER_UNIFORM_MISSING', name: 'Alt Forma Eksik', color: '#f97316', icon: 'Scissors', sort_order: 2 },
-      { code: 'PHYSICAL_EDUCATION_UNIFORM', name: 'Beden Eğitimi Eşofman İhlali', color: '#4f46e5', icon: 'Activity', sort_order: 3 },
-      { code: 'CIVIL_CLOTHES', name: 'Tamamen Sivil / Uygunsuz', color: '#e11d48', icon: 'UserX', sort_order: 4 },
-      { code: 'INAPPROPRIATE_CLOTHING', name: 'Kılık-Kıyafet Uygunsuz', color: '#9333ea', icon: 'AlertCircle', sort_order: 5 },
-      { code: 'OTHER', name: 'Diğer İhlal', color: '#475569', icon: 'MoreHorizontal', sort_order: 6 },
-    ],
-  });
-
-  // 4. Users (Admin: idaremai / 767943, Teachers: sivasmai / 767943)
+  // 3. Safe Users (Admin: idaremai / 767943, Teachers: sivasmai / 767943)
   const adminPassword = await bcrypt.hash('767943', 10);
   const mainTeacherPassword = await bcrypt.hash('767943', 10);
   const teacherPassword = await bcrypt.hash('123456', 10);
 
-  const admin = await prisma.user.create({
-    data: {
+  const admin = await prisma.user.upsert({
+    where: { username: 'idaremai' },
+    update: { active: true },
+    create: {
       username: 'idaremai',
       name: 'İdare',
       surname: 'Yönetici',
@@ -57,8 +60,10 @@ async function main() {
     },
   });
 
-  const mainTeacher = await prisma.user.create({
-    data: {
+  const mainTeacher = await prisma.user.upsert({
+    where: { username: 'sivasmai' },
+    update: { active: true },
+    create: {
       username: 'sivasmai',
       name: 'Nöbetçi',
       surname: 'Öğretmen',
@@ -77,8 +82,10 @@ async function main() {
 
   const createdTeachers = [mainTeacher];
   for (const t of otherTeachers) {
-    const user = await prisma.user.create({
-      data: {
+    const user = await prisma.user.upsert({
+      where: { username: t.username },
+      update: { active: true },
+      create: {
         username: t.username,
         name: t.name,
         surname: t.surname,
@@ -90,7 +97,7 @@ async function main() {
     createdTeachers.push(user);
   }
 
-  // 5. Read 8A sınıfı.xlsx or sınıf.xlsx
+  // 4. Read and sync 8A sınıfı.xlsx or sınıf.xlsx
   const fs = require('fs');
   let excelPath = path.join(__dirname, '../8A sınıfı.xlsx');
   if (!fs.existsSync(excelPath)) {
@@ -168,8 +175,15 @@ async function main() {
     ];
     const isFemale = femaleKeywords.some((kw) => nameStr.toLocaleUpperCase('tr-TR').includes(kw));
 
-    const student = await prisma.student.create({
-      data: {
+    const student = await prisma.student.upsert({
+      where: { ogrenci_no: noStr },
+      update: {
+        ad_soyad: nameStr,
+        sinif: grade,
+        sube: branch,
+        aktif: true,
+      },
+      create: {
         ogrenci_no: noStr,
         ad_soyad: nameStr,
         sinif: grade,
@@ -183,64 +197,64 @@ async function main() {
     createdStudents.push(student);
   }
 
-  console.log(`Successfully created ${createdStudents.length} real students from ${path.basename(excelPath)} (8/A)!`);
+  console.log(`Successfully synced ${createdStudents.length} students from ${path.basename(excelPath)} (8/A)!`);
 
-  // 6. Sample Violations for the real students (guarantee today and past days of the week)
-  const now = new Date();
-  const istanbulFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Istanbul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-  const todayStr = istanbulFormatter.format(now); // YYYY-MM-DD
+  // 5. Sample Violations (Only create if database has NO existing violations, protecting user records)
+  const existingViolationCount = await prisma.violation.count();
+  let violationCount = existingViolationCount;
 
-  const [curY, curM, curD] = todayStr.split('-').map(Number);
-  const curDateObj = new Date(curY, curM - 1, curD);
-  const dayOfWeek = curDateObj.getDay();
-  const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  if (existingViolationCount === 0 && createdStudents.length >= 3) {
+    const now = new Date();
+    const istanbulFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const todayStr = istanbulFormatter.format(now); // YYYY-MM-DD
 
-  const dates = [];
-  for (let i = 0; i <= distanceToMonday; i++) {
-    const d = new Date(curY, curM - 1, curD - distanceToMonday + i);
-    const yStr = d.getFullYear();
-    const mStr = String(d.getMonth() + 1).padStart(2, '0');
-    const dStr = String(d.getDate()).padStart(2, '0');
-    const formatted = `${yStr}-${mStr}-${dStr}`;
-    if (formatted <= todayStr) {
-      dates.push(formatted);
+    const [curY, curM, curD] = todayStr.split('-').map(Number);
+    const curDateObj = new Date(curY, curM - 1, curD);
+    const dayOfWeek = curDateObj.getDay();
+    const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+    const dates = [];
+    for (let i = 0; i <= distanceToMonday; i++) {
+      const d = new Date(curY, curM - 1, curD - distanceToMonday + i);
+      const yStr = d.getFullYear();
+      const mStr = String(d.getMonth() + 1).padStart(2, '0');
+      const dStr = String(d.getDate()).padStart(2, '0');
+      const formatted = `${yStr}-${mStr}-${dStr}`;
+      if (formatted <= todayStr) {
+        dates.push(formatted);
+      }
     }
-  }
 
-  if (!dates.includes(todayStr)) {
-    dates.push(todayStr);
-  }
+    if (!dates.includes(todayStr)) {
+      dates.push(todayStr);
+    }
 
-  const violationTypes = [
-    'UPPER_UNIFORM_MISSING',
-    'LOWER_UNIFORM_MISSING',
-    'PHYSICAL_EDUCATION_UNIFORM',
-    'CIVIL_CLOTHES',
-    'INAPPROPRIATE_CLOTHING',
-    'OTHER'
-  ];
+    const violationTypes = [
+      'UPPER_UNIFORM_MISSING',
+      'LOWER_UNIFORM_MISSING',
+      'PHYSICAL_EDUCATION_UNIFORM',
+      'CIVIL_CLOTHES',
+      'INAPPROPRIATE_CLOTHING',
+      'OTHER'
+    ];
 
-  const sampleNotes = [
-    'Mont ile okul forması kapatılmış.',
-    'Kapüşonlu sivil sweatshirt giyilmiş.',
-    'Kot pantolon ve sivil tişört.',
-    'Beden eğitimi dersi olmadığı halde eşofman giyilmiş.',
-    'Okul arması olmayan sivil polar hırka.',
-    '',
-    null,
-  ];
+    const sampleNotes = [
+      'Mont ile okul forması kapatılmış.',
+      'Kapüşonlu sivil sweatshirt giyilmiş.',
+      'Kot pantolon ve sivil tişört.',
+      'Beden eğitimi dersi olmadığı halde eşofman giyilmiş.',
+      'Okul arması olmayan sivil polar hırka.',
+      '',
+      null,
+    ];
 
-  const sampleTimes = ['08:15', '08:24', '08:35', '08:42', '08:55', '09:10', '10:05'];
+    const sampleTimes = ['08:15', '08:24', '08:35', '08:42', '08:55', '09:10', '10:05'];
 
-  let violationCount = 0;
-
-  // Let's create realistic violations for students from sınıf.xlsx
-  if (createdStudents.length >= 3) {
     // Student 0 (Ahmet Yılmaz)
     const ahmetDates = dates.length > 1 ? [dates[0], dates[dates.length - 1]] : [dates[0]];
     for (let i = 0; i < ahmetDates.length; i++) {
