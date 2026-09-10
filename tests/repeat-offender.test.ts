@@ -64,6 +64,6 @@ describe('Repeat Violation & Duplicate Logic', () => {
     expect(typeof stats.weekly_total).toBe('number');
     expect(Array.isArray(stats.repeat_offenders_list)).toBe(true);
     expect(Array.isArray(stats.daily_trend)).toBe(true);
-    expect(stats.daily_trend.length).toBe(5); // Mon-Fri
+    expect(stats.daily_trend.length).toBe(7); // Mon-Sun (Full week)
   });
 });
