@@ -34,9 +34,10 @@ async function main() {
     data: [
       { code: 'UPPER_UNIFORM_MISSING', name: 'Üst Forma Eksik', color: '#f59e0b', icon: 'Shirt', sort_order: 1 },
       { code: 'LOWER_UNIFORM_MISSING', name: 'Alt Forma Eksik', color: '#f97316', icon: 'Scissors', sort_order: 2 },
-      { code: 'CIVIL_CLOTHES', name: 'Tamamen Sivil / Uygunsuz', color: '#e11d48', icon: 'UserX', sort_order: 3 },
-      { code: 'INAPPROPRIATE_CLOTHING', name: 'Kılık-Kıyafet Uygunsuz', color: '#9333ea', icon: 'AlertCircle', sort_order: 4 },
-      { code: 'OTHER', name: 'Diğer İhlal', color: '#475569', icon: 'MoreHorizontal', sort_order: 5 },
+      { code: 'PHYSICAL_EDUCATION_UNIFORM', name: 'Beden Eğitimi Eşofman İhlali', color: '#4f46e5', icon: 'Activity', sort_order: 3 },
+      { code: 'CIVIL_CLOTHES', name: 'Tamamen Sivil / Uygunsuz', color: '#e11d48', icon: 'UserX', sort_order: 4 },
+      { code: 'INAPPROPRIATE_CLOTHING', name: 'Kılık-Kıyafet Uygunsuz', color: '#9333ea', icon: 'AlertCircle', sort_order: 5 },
+      { code: 'OTHER', name: 'Diğer İhlal', color: '#475569', icon: 'MoreHorizontal', sort_order: 6 },
     ],
   });
 
@@ -218,6 +219,7 @@ async function main() {
   const violationTypes = [
     'UPPER_UNIFORM_MISSING',
     'LOWER_UNIFORM_MISSING',
+    'PHYSICAL_EDUCATION_UNIFORM',
     'CIVIL_CLOTHES',
     'INAPPROPRIATE_CLOTHING',
     'OTHER'

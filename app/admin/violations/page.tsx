@@ -190,6 +190,7 @@ export default function AdminViolationsPage() {
               <option value="">Tüm İhlal Türleri</option>
               <option value="UPPER_UNIFORM_MISSING">Üst Forma Eksik</option>
               <option value="LOWER_UNIFORM_MISSING">Alt Forma Eksik</option>
+              <option value="PHYSICAL_EDUCATION_UNIFORM">Beden Eğitimi Eşofman İhlali</option>
               <option value="CIVIL_CLOTHES">Tamamen Sivil / Uygunsuz</option>
               <option value="INAPPROPRIATE_CLOTHING">Kılık-Kıyafet Uygunsuz</option>
               <option value="OTHER">Diğer İhlal</option>

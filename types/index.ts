@@ -35,6 +35,7 @@ export interface Student {
 export type ViolationTypeCode =
   | 'UPPER_UNIFORM_MISSING'
   | 'LOWER_UNIFORM_MISSING'
+  | 'PHYSICAL_EDUCATION_UNIFORM'
   | 'CIVIL_CLOTHES'
   | 'INAPPROPRIATE_CLOTHING'
   | 'OTHER';

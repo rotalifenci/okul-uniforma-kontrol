@@ -28,7 +28,8 @@ import {
   Clock,
   Delete,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -478,6 +479,21 @@ export default function TeacherPage() {
                       <Scissors className="h-6 w-6" />
                     </div>
                     <span>ALT FORMA EKSİK</span>
+                  </div>
+                  <span className="text-xs bg-white/25 px-2.5 py-1 rounded-lg">KAYDET</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => handleRecordViolation('PHYSICAL_EDUCATION_UNIFORM')}
+                  className="h-16 w-full rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white shadow-md transition-all flex items-center justify-between px-5 font-extrabold text-base disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="p-2 bg-white/20 rounded-xl">
+                      <Activity className="h-6 w-6" />
+                    </div>
+                    <span>BEDEN EĞİTİMİ EŞOFMAN İHLALİ</span>
                   </div>
                   <span className="text-xs bg-white/25 px-2.5 py-1 rounded-lg">KAYDET</span>
                 </button>

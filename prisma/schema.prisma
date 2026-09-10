@@ -55,7 +55,7 @@ model Violation {
   teacher_id            String
   duty_teacher_name     String?   // Actual name of the teacher on shift (e.g. Mehmet Kaya)
   duty_location         String?   // Location/Station (e.g. Ana Giriş Kapısı, Bahçe, Zemin Kat)
-  type                  String    // UPPER_UNIFORM_MISSING, LOWER_UNIFORM_MISSING, CIVIL_CLOTHES, INAPPROPRIATE_CLOTHING, OTHER
+  type                  String    // UPPER_UNIFORM_MISSING, LOWER_UNIFORM_MISSING, PHYSICAL_EDUCATION_UNIFORM, CIVIL_CLOTHES, INAPPROPRIATE_CLOTHING, OTHER
   note                  String?
   date                  String    // YYYY-MM-DD format (Europe/Istanbul)
   time                  String    // HH:mm format

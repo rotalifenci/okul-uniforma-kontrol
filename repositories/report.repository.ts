@@ -104,6 +104,7 @@ export class ReportRepository {
         count: typeCounts[typeKey] || 0,
         color: typeKey === 'UPPER_UNIFORM_MISSING' ? '#f59e0b'
           : typeKey === 'LOWER_UNIFORM_MISSING' ? '#f97316'
+          : typeKey === 'PHYSICAL_EDUCATION_UNIFORM' ? '#4f46e5'
           : typeKey === 'CIVIL_CLOTHES' ? '#e11d48'
           : typeKey === 'INAPPROPRIATE_CLOTHING' ? '#9333ea'
           : '#475569',

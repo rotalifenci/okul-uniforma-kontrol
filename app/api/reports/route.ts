@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
     const typeCounts: Record<string, number> = {
       UPPER_UNIFORM_MISSING: 0,
       LOWER_UNIFORM_MISSING: 0,
+      PHYSICAL_EDUCATION_UNIFORM: 0,
       CIVIL_CLOTHES: 0,
       INAPPROPRIATE_CLOTHING: 0,
       OTHER: 0,
@@ -131,6 +132,7 @@ export async function GET(request: NextRequest) {
       total_violations: violations.length,
       upper_missing: typeCounts.UPPER_UNIFORM_MISSING,
       lower_missing: typeCounts.LOWER_UNIFORM_MISSING,
+      pe_uniform: typeCounts.PHYSICAL_EDUCATION_UNIFORM,
       civil_clothes: typeCounts.CIVIL_CLOTHES,
       inappropriate: typeCounts.INAPPROPRIATE_CLOTHING,
       other: typeCounts.OTHER,

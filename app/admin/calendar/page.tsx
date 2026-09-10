@@ -230,6 +230,7 @@ export default function AdminCalendarPage() {
               <option value="">Tüm İhlaller</option>
               <option value="UPPER_UNIFORM_MISSING">Üst Forma</option>
               <option value="LOWER_UNIFORM_MISSING">Alt Forma</option>
+              <option value="PHYSICAL_EDUCATION_UNIFORM">Beden Eğitimi</option>
               <option value="CIVIL_CLOTHES">Sivil</option>
               <option value="INAPPROPRIATE_CLOTHING">Uygunsuzluk</option>
               <option value="OTHER">Diğer</option>

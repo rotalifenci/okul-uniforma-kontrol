@@ -205,7 +205,7 @@ export default function AdminReportsPage() {
 
       {/* Summary KPI Cards */}
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           <Card className="rounded-2xl border-border bg-card p-4 space-y-1">
             <span className="text-xs font-semibold text-muted-foreground">Toplam İhlal</span>
             <p className="text-2xl font-black text-foreground">{summary.total_violations}</p>
@@ -215,16 +215,20 @@ export default function AdminReportsPage() {
             <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{summary.unique_student_count || studentSummary.length}</p>
           </Card>
           <Card className="rounded-2xl border-border bg-card p-4 space-y-1 border-rose-200 dark:border-rose-900 bg-rose-50/20">
-            <span className="text-xs font-bold text-rose-700 dark:text-rose-400">🔴 Tekrarlayan (2+)</span>
+            <span className="text-xs font-bold text-rose-700 dark:text-rose-400">🔴 Tekrarlayan</span>
             <p className="text-2xl font-black text-rose-600">{summary.repeat_student_count}</p>
           </Card>
           <Card className="rounded-2xl border-border bg-card p-4 space-y-1">
-            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Üst Forma Eksik</span>
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Üst Forma</span>
             <p className="text-2xl font-black text-foreground">{summary.upper_missing}</p>
           </Card>
           <Card className="rounded-2xl border-border bg-card p-4 space-y-1">
-            <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">Alt Forma Eksik</span>
+            <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">Alt Forma</span>
             <p className="text-2xl font-black text-foreground">{summary.lower_missing}</p>
+          </Card>
+          <Card className="rounded-2xl border-border bg-card p-4 space-y-1">
+            <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Beden Eğitimi</span>
+            <p className="text-2xl font-black text-foreground">{summary.pe_uniform || 0}</p>
           </Card>
           <Card className="rounded-2xl border-border bg-card p-4 space-y-1">
             <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">Sivil / Uygunsuz</span>
@@ -342,6 +346,7 @@ export default function AdminReportsPage() {
               <option value="">Tüm İhlal Türleri</option>
               <option value="UPPER_UNIFORM_MISSING">Üst Forma Eksik</option>
               <option value="LOWER_UNIFORM_MISSING">Alt Forma Eksik</option>
+              <option value="PHYSICAL_EDUCATION_UNIFORM">Beden Eğitimi Eşofman İhlali</option>
               <option value="CIVIL_CLOTHES">Tamamen Sivil / Uygunsuz</option>
               <option value="INAPPROPRIATE_CLOTHING">Kılık-Kıyafet Uygunsuz</option>
               <option value="OTHER">Diğer İhlal</option>

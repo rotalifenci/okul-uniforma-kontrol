@@ -91,6 +91,13 @@ export const VIOLATION_TYPE_MAP: Record<string, { label: string; shortLabel: str
     badgeColor: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border-orange-200 dark:border-orange-800",
     icon: "Scissors"
   },
+  PHYSICAL_EDUCATION_UNIFORM: {
+    label: "Beden Eğitimi Eşofman İhlali",
+    shortLabel: "Eşofman İhlali",
+    color: "bg-indigo-600 hover:bg-indigo-700 text-white",
+    badgeColor: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+    icon: "Activity"
+  },
   CIVIL_CLOTHES: {
     label: "Tamamen Sivil / Uygunsuz",
     shortLabel: "Sivil Kıyafet",
