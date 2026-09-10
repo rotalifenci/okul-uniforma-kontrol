@@ -20,7 +20,9 @@ import {
   ArrowRight,
   User,
   Clock,
-  RotateCcw
+  RotateCcw,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,7 +41,8 @@ export default function AdminReportsPage() {
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'students' | 'records' | 'classes'>('students');
+  const [activeTab, setActiveTab] = useState<'records' | 'students' | 'classes'>('records');
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
 
   // Quick Date Range helper
   const setQuickRange = (preset: 'all' | 'today' | 'yesterday' | 'week' | 'month') => {
@@ -364,21 +367,114 @@ export default function AdminReportsPage() {
         </CardContent>
       </Card>
 
-      {/* Tabs: Students vs Detailed Records vs Class Breakdown */}
+      {/* Tabs: Detailed Records vs Student Summary vs Class Breakdown */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <TabsList className="grid grid-cols-3 max-w-xl">
-          <TabsTrigger value="students" className="font-bold">
-            👤 İhlal Girilen Öğrenciler ({studentSummary.length})
-          </TabsTrigger>
           <TabsTrigger value="records" className="font-bold">
             📋 Detaylı İhlal Listesi ({violationItems.length})
+          </TabsTrigger>
+          <TabsTrigger value="students" className="font-bold">
+            👤 Öğrenci Bazlı Özet ({studentSummary.length})
           </TabsTrigger>
           <TabsTrigger value="classes" className="font-bold">
             📊 Sınıf Analizi
           </TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: All Students with Violations */}
+        {/* Tab 1: Detailed Records (Every violation row-by-row) */}
+        <TabsContent value="records">
+          <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden mt-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-muted/50 text-xs font-bold text-muted-foreground uppercase border-b border-border">
+                  <tr>
+                    <th className="p-3.5 pl-5">#</th>
+                    <th className="p-3.5">Tarih</th>
+                    <th className="p-3.5">Saat</th>
+                    <th className="p-3.5">Öğrenci No</th>
+                    <th className="p-3.5">Adı Soyadı</th>
+                    <th className="p-3.5">Sınıf</th>
+                    <th className="p-3.5">İhlal Türü</th>
+                    <th className="p-3.5">Nöbetçi Öğretmen</th>
+                    <th className="p-3.5">Not</th>
+                    <th className="p-3.5 text-right pr-5">İşlemler</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={10} className="p-8 text-center text-muted-foreground">
+                        Kayıtlar yükleniyor...
+                      </td>
+                    </tr>
+                  ) : violationItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-8 text-center text-muted-foreground">
+                        Kriterlere uygun ihlal kaydı bulunamadı.
+                      </td>
+                    </tr>
+                  ) : (
+                    violationItems.map((item: any, idx: number) => {
+                      const typeInfo = VIOLATION_TYPE_MAP[item.type];
+                      return (
+                        <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="p-3.5 pl-5 text-xs text-muted-foreground">{idx + 1}</td>
+                          <td className="p-3.5 font-bold text-foreground">
+                            {formatDateTR(item.date)}
+                          </td>
+                          <td className="p-3.5 text-xs text-muted-foreground font-semibold">
+                            {item.time}
+                          </td>
+                          <td className="p-3.5 font-bold text-blue-600 dark:text-blue-400">
+                            {item.student?.ogrenci_no || '-'}
+                          </td>
+                          <td className="p-3.5">
+                            {item.student ? (
+                              <Link href={`/admin/students/${item.student.id}`} className="font-bold text-foreground hover:text-blue-600">
+                                {item.student.ad_soyad}
+                              </Link>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="p-3.5 font-semibold">
+                            <span className="px-2 py-0.5 rounded-md bg-muted text-xs">
+                              {item.student ? `${item.student.sinif}-${item.student.sube}` : '-'}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <Badge className={typeInfo?.badgeColor || 'bg-slate-100 text-slate-800'}>
+                              {typeInfo?.label || item.type}
+                            </Badge>
+                          </td>
+                          <td className="p-3.5 text-xs text-muted-foreground">
+                            <div className="font-medium text-foreground">
+                              {item.duty_teacher_name || (item.teacher ? `${item.teacher.name} ${item.teacher.surname}` : 'Nöbetçi Öğretmen')}
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-xs text-muted-foreground max-w-xs truncate">
+                            {item.note || '-'}
+                          </td>
+                          <td className="p-3.5 text-right pr-5">
+                            {item.student && (
+                              <Link href={`/admin/students/${item.student.id}`}>
+                                <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-blue-600">
+                                  <Eye className="h-3.5 w-3.5 mr-1" /> Detay
+                                </Button>
+                              </Link>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 2: Students Summary with expandable drill-down */}
         <TabsContent value="students">
           <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden mt-3">
             <div className="overflow-x-auto">
@@ -389,10 +485,10 @@ export default function AdminReportsPage() {
                     <th className="p-3.5">Öğrenci No</th>
                     <th className="p-3.5">Adı Soyadı</th>
                     <th className="p-3.5">Sınıf/Şube</th>
-                    <th className="p-3.5">Toplam İhlal Sayısı</th>
+                    <th className="p-3.5">Toplam İhlal</th>
                     <th className="p-3.5">Son İhlal Türü</th>
                     <th className="p-3.5">Son İhlal Tarihi</th>
-                    <th className="p-3.5 text-right pr-5">İşlemler</th>
+                    <th className="p-3.5 text-right pr-5">Detaylar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -411,148 +507,101 @@ export default function AdminReportsPage() {
                   ) : (
                     studentSummary.map((item: any, idx: number) => {
                       const lastTypeInfo = VIOLATION_TYPE_MAP[item.last_violation?.type];
+                      const isExpanded = expandedStudentId === item.student.id;
                       return (
-                        <tr key={item.student.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-3.5 pl-5 text-xs text-muted-foreground">{idx + 1}</td>
-                          <td className="p-3.5 font-bold text-blue-600 dark:text-blue-400">
-                            {item.student.ogrenci_no}
-                          </td>
-                          <td className="p-3.5">
-                            <div className="flex items-center gap-2.5">
-                              <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/60 flex items-center justify-center font-bold text-blue-700 dark:text-blue-300 text-xs overflow-hidden flex-shrink-0">
-                                {item.student.profil_resmi_url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={item.student.profil_resmi_url} alt={item.student.ad_soyad} className="w-full h-full object-cover" />
-                                ) : (
-                                  item.student.ad_soyad[0]
+                        <React.Fragment key={item.student.id}>
+                          <tr
+                            onClick={() => setExpandedStudentId(isExpanded ? null : item.student.id)}
+                            className="hover:bg-muted/30 transition-colors cursor-pointer"
+                          >
+                            <td className="p-3.5 pl-5 text-xs text-muted-foreground">{idx + 1}</td>
+                            <td className="p-3.5 font-bold text-blue-600 dark:text-blue-400">
+                              {item.student.ogrenci_no}
+                            </td>
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/60 flex items-center justify-center font-bold text-blue-700 dark:text-blue-300 text-xs overflow-hidden flex-shrink-0">
+                                  {item.student.profil_resmi_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={item.student.profil_resmi_url} alt={item.student.ad_soyad} className="w-full h-full object-cover" />
+                                  ) : (
+                                    item.student.ad_soyad[0]
+                                  )}
+                                </div>
+                                <div className="font-bold text-foreground hover:text-blue-600 flex items-center gap-1.5">
+                                  <span>{item.student.ad_soyad}</span>
+                                  {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3.5 font-semibold">
+                              <span className="px-2 py-0.5 rounded-md bg-muted text-xs">
+                                {item.student.sinif}-{item.student.sube}
+                              </span>
+                            </td>
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-sm text-foreground">{item.violation_count}</span>
+                                {item.is_repeat && (
+                                  <Badge variant="repeat" className="text-[10px] px-2 py-0.2">
+                                    🔴 {item.violation_count} İhlal
+                                  </Badge>
                                 )}
                               </div>
-                              <div>
-                                <Link href={`/admin/students/${item.student.id}`} className="font-bold text-foreground hover:text-blue-600 block">
-                                  {item.student.ad_soyad}
-                                </Link>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-3.5 font-semibold">
-                            <span className="px-2 py-0.5 rounded-md bg-muted text-xs">
-                              {item.student.sinif}-{item.student.sube}
-                            </span>
-                          </td>
-                          <td className="p-3.5">
-                            <div className="flex items-center gap-2">
-                              <span className="font-black text-sm text-foreground">{item.violation_count}</span>
-                              {item.is_repeat && (
-                                <Badge variant="repeat" className="text-[10px] px-2 py-0.2">
-                                  🔴 {item.violation_count} İhlal (Tekrar)
-                                </Badge>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-3.5">
-                            <Badge className={lastTypeInfo?.badgeColor || 'bg-slate-100 text-slate-800'}>
-                              {lastTypeInfo?.shortLabel || item.last_violation?.type}
-                            </Badge>
-                          </td>
-                          <td className="p-3.5 text-xs text-muted-foreground font-medium">
-                            {item.last_violation ? `${formatDateTR(item.last_violation.date)} ${item.last_violation.time}` : '-'}
-                          </td>
-                          <td className="p-3.5 text-right pr-5">
-                            <Link href={`/admin/students/${item.student.id}`}>
-                              <Button variant="ghost" size="sm" className="h-8 text-xs font-bold text-blue-600 hover:text-blue-700">
-                                <Eye className="h-3.5 w-3.5 mr-1" /> Profili Gör
-                              </Button>
-                            </Link>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </TabsContent>
-
-        {/* Tab 2: Records Table */}
-        <TabsContent value="records">
-          <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden mt-3">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-muted/50 text-xs font-bold text-muted-foreground uppercase border-b border-border">
-                  <tr>
-                    <th className="p-3.5 pl-5">#</th>
-                    <th className="p-3.5">Tarih / Saat</th>
-                    <th className="p-3.5">Öğrenci No</th>
-                    <th className="p-3.5">Adı Soyadı</th>
-                    <th className="p-3.5">Sınıf/Şube</th>
-                    <th className="p-3.5">İhlal Türü</th>
-                    <th className="p-3.5">Nöbetçi Öğretmen</th>
-                    <th className="p-3.5">Not</th>
-                    <th className="p-3.5 text-right pr-5">İşlem</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                        Rapor verileri yükleniyor...
-                      </td>
-                    </tr>
-                  ) : violationItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                        Seçilen filtre kriterlerine uygun kayıt bulunamadı.
-                      </td>
-                    </tr>
-                  ) : (
-                    violationItems.map((item: any, idx: number) => {
-                      const typeInfo = VIOLATION_TYPE_MAP[item.type];
-                      return (
-                        <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-3.5 pl-5 text-xs text-muted-foreground">{idx + 1}</td>
-                          <td className="p-3.5 text-xs font-semibold">
-                            <span className="font-bold block">{formatDateTR(item.date)}</span>
-                            <span className="text-muted-foreground">{item.time}</span>
-                          </td>
-                          <td className="p-3.5 font-bold text-blue-600 dark:text-blue-400">
-                            {item.student?.ogrenci_no}
-                          </td>
-                          <td className="p-3.5 font-bold text-foreground">
-                            {item.student ? (
-                              <Link href={`/admin/students/${item.student.id}`} className="hover:text-blue-600">
-                                {item.student.ad_soyad}
-                              </Link>
-                            ) : '-'}
-                          </td>
-                          <td className="p-3.5 font-semibold">
-                            <span className="px-2 py-0.5 rounded-md bg-muted text-xs">
-                              {item.student ? `${item.student.sinif}-${item.student.sube}` : '-'}
-                            </span>
-                          </td>
-                          <td className="p-3.5">
-                            <Badge className={typeInfo?.badgeColor || 'bg-slate-100 text-slate-800'}>
-                              {typeInfo?.label || item.type}
-                            </Badge>
-                          </td>
-                          <td className="p-3.5 text-xs text-muted-foreground">
-                            <div className="font-medium text-foreground">
-                              {item.duty_teacher_name || (item.teacher ? `${item.teacher.name} ${item.teacher.surname}` : '-')}
-                            </div>
-                          </td>
-                          <td className="p-3.5 text-xs text-muted-foreground max-w-xs truncate">
-                            {item.note || '-'}
-                          </td>
-                          <td className="p-3.5 text-right pr-5">
-                            {item.student && (
+                            </td>
+                            <td className="p-3.5">
+                              <Badge className={lastTypeInfo?.badgeColor || 'bg-slate-100 text-slate-800'}>
+                                {lastTypeInfo?.shortLabel || item.last_violation?.type}
+                              </Badge>
+                            </td>
+                            <td className="p-3.5 text-xs text-muted-foreground font-medium">
+                              {item.last_violation ? `${formatDateTR(item.last_violation.date)} ${item.last_violation.time}` : '-'}
+                            </td>
+                            <td className="p-3.5 text-right pr-5" onClick={(e) => e.stopPropagation()}>
                               <Link href={`/admin/students/${item.student.id}`}>
-                                <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-blue-600">
-                                  <Eye className="h-3.5 w-3.5 mr-1" /> Detay
+                                <Button variant="ghost" size="sm" className="h-8 text-xs font-bold text-blue-600 hover:text-blue-700">
+                                  <Eye className="h-3.5 w-3.5 mr-1" /> Profili Gör
                                 </Button>
                               </Link>
-                            )}
-                          </td>
-                        </tr>
+                            </td>
+                          </tr>
+
+                          {/* Expanded violation drill-down for this student */}
+                          {isExpanded && item.violations && item.violations.length > 0 && (
+                            <tr className="bg-blue-50/40 dark:bg-blue-950/20">
+                              <td colSpan={8} className="p-4 pl-12">
+                                <div className="space-y-2">
+                                  <span className="text-xs font-bold text-blue-700 dark:text-blue-300">
+                                    Bu Öğrencinin Tüm İhlal Geçmişi ({item.violations.length} Kayıt):
+                                  </span>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                    {item.violations.map((v: any, vIdx: number) => {
+                                      const vType = VIOLATION_TYPE_MAP[v.type];
+                                      return (
+                                        <div key={v.id || vIdx} className="p-2.5 rounded-xl bg-card border border-border text-xs space-y-1 shadow-sm">
+                                          <div className="flex items-center justify-between font-bold">
+                                            <span>{formatDateTR(v.date)}</span>
+                                            <span className="text-muted-foreground">{v.time}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5">
+                                            <Badge className={`text-[10px] px-1.5 py-0.2 ${vType?.badgeColor || ''}`}>
+                                              {vType?.shortLabel || v.type}
+                                            </Badge>
+                                          </div>
+                                          {v.note && (
+                                            <p className="text-[11px] text-muted-foreground italic">
+                                              "{v.note}"
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })
                   )}
