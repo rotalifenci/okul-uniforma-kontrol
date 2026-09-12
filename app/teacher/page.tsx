@@ -40,12 +40,10 @@ export default function TeacherPage() {
   const { isOnline, queueViolation } = useSyncStore();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Student[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
   const [note, setNote] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   // Duplicate warning modal state
@@ -58,18 +56,33 @@ export default function TeacherPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const allStudentsCacheRef = useRef<Student[]>([]);
 
-  // Preload students into memory cache for 0ms instantaneous search
-  useEffect(() => {
-    fetch('/api/students/search?q=&limit=1500')
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success && Array.isArray(json.data)) {
-          allStudentsCacheRef.current = json.data;
-          cacheStudentsLocally(json.data);
-        }
-      })
-      .catch(() => {});
+  // Preload students into memory and local storage
+  const loadAllStudents = useCallback(async () => {
+    try {
+      // 1. Instant load from local storage
+      const local = await searchLocalStudents('');
+      if (local && local.length > 0) {
+        setAllStudents(local);
+        allStudentsCacheRef.current = local;
+      }
+      // 2. Fetch all fresh students from server
+      const res = await fetch('/api/students/search?q=&limit=2000', {
+        credentials: 'include',
+      });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        setAllStudents(json.data);
+        allStudentsCacheRef.current = json.data;
+        cacheStudentsLocally(json.data);
+      }
+    } catch (e) {
+      console.error('Error loading students:', e);
+    }
   }, []);
+
+  useEffect(() => {
+    loadAllStudents();
+  }, [loadAllStudents, user]);
 
   // Detect touch device to prevent mobile soft keyboard popup
   useEffect(() => {
@@ -92,153 +105,100 @@ export default function TeacherPage() {
     }
   }, [user, authLoading, router]);
 
-  // High-speed real-time prediction search (Memory first -> Network fallback)
-  const performSearch = useCallback(async (query: string) => {
-    const trimmed = query.trim();
-    if (!trimmed) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
+  // Instantaneous 0ms Synchronous Predictions via useMemo
+  const predictions = React.useMemo(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return [];
+    const isNum = /^\d+$/.test(trimmed);
+    const qUpper = trimmed.toLocaleUpperCase('tr-TR');
 
-    // 1. Instant Synchronous Memory Match (0ms latency)
-    if (allStudentsCacheRef.current.length > 0) {
-      const qUpper = trimmed.toLocaleUpperCase('tr-TR');
-      const isNumeric = /^\d+$/.test(trimmed);
+    const source = allStudents.length > 0 ? allStudents : allStudentsCacheRef.current;
+    if (source.length === 0) return [];
 
-      const memMatches = allStudentsCacheRef.current
-        .filter((st) => {
-          if (isNumeric) {
-            return st.ogrenci_no.startsWith(trimmed);
-          }
-          return (
-            st.ogrenci_no.startsWith(trimmed) ||
-            st.ad_soyad.toLocaleUpperCase('tr-TR').includes(qUpper)
-          );
-        })
-        .sort((a, b) => {
-          // Exact number match comes first
-          if (a.ogrenci_no === trimmed) return -1;
-          if (b.ogrenci_no === trimmed) return 1;
-          // Shorter numbers first
-          if (a.ogrenci_no.startsWith(trimmed) && b.ogrenci_no.startsWith(trimmed)) {
-            return parseInt(a.ogrenci_no, 10) - parseInt(b.ogrenci_no, 10);
-          }
-          return 0;
-        });
-
-      setSearchResults(memMatches.slice(0, 10));
-      setIsSearching(false);
-      return;
-    }
-
-    setIsSearching(true);
-    if (isOnline) {
-      try {
-        const res = await fetch(`/api/students/search?q=${encodeURIComponent(trimmed)}&limit=10`);
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          setSearchResults(json.data);
-          cacheStudentsLocally(json.data);
+    return source
+      .filter((st) => {
+        if (isNum) {
+          return st.ogrenci_no.startsWith(trimmed) || st.ogrenci_no.includes(trimmed);
         }
-      } catch (e) {
-        const local = await searchLocalStudents(trimmed);
-        setSearchResults(local);
-      } finally {
-        setIsSearching(false);
-      }
-    } else {
-      const local = await searchLocalStudents(trimmed);
-      setSearchResults(local);
-      setIsSearching(false);
-    }
-  }, [isOnline]);
+        return (
+          st.ogrenci_no.startsWith(trimmed) ||
+          st.ad_soyad.toLocaleUpperCase('tr-TR').includes(qUpper)
+        );
+      })
+      .sort((a, b) => {
+        // 1. Exact match first
+        if (a.ogrenci_no === trimmed) return -1;
+        if (b.ogrenci_no === trimmed) return 1;
+        // 2. Starts with query number
+        const aStarts = a.ogrenci_no.startsWith(trimmed);
+        const bStarts = b.ogrenci_no.startsWith(trimmed);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        // 3. Shorter / numerical order
+        return parseInt(a.ogrenci_no, 10) - parseInt(b.ogrenci_no, 10);
+      })
+      .slice(0, 20);
+  }, [searchQuery, allStudents]);
 
-  useEffect(() => {
-    // 30ms ultra-fast debounce for instant real-time prediction
-    const timer = setTimeout(() => {
-      performSearch(searchQuery);
-    }, 30);
-    return () => clearTimeout(timer);
-  }, [searchQuery, performSearch]);
-
-  // Instant direct student lookup by exact number or name
-  const handleLookupStudent = useCallback(async (customQuery?: string) => {
+  // Instant direct student lookup by exact number, name, or first matching prediction
+  const handleLookupStudent = useCallback((customQuery?: string) => {
     const queryToUse = (typeof customQuery === 'string' ? customQuery : searchQuery).trim();
     if (!queryToUse) {
       toast.info('Lütfen bir öğrenci numarası girin.');
       return;
     }
 
-    setIsSearching(true);
+    const source = allStudents.length > 0 ? allStudents : allStudentsCacheRef.current;
 
-    // 1. Search in memory cache first (0ms latency)
-    if (allStudentsCacheRef.current.length > 0) {
-      // Exact number match
-      let match = allStudentsCacheRef.current.find((s) => s.ogrenci_no === queryToUse);
-      
-      // If not exact number, try full name match or contains or first prefix match
-      if (!match) {
-        const qUpper = queryToUse.toLocaleUpperCase('tr-TR');
-        match = allStudentsCacheRef.current.find((s) => s.ad_soyad.toLocaleUpperCase('tr-TR') === qUpper) ||
-                allStudentsCacheRef.current.find((s) => s.ogrenci_no.startsWith(queryToUse)) ||
-                allStudentsCacheRef.current.find((s) => s.ad_soyad.toLocaleUpperCase('tr-TR').includes(qUpper));
-      }
+    // 1. Exact number match
+    let match = source.find((s) => s.ogrenci_no === queryToUse);
 
-      if (match) {
-        if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-          navigator.vibrate(40);
-        }
-        setSelectedStudent(match);
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
-      }
+    // 2. First prediction match
+    if (!match && predictions.length > 0) {
+      match = predictions[0];
     }
 
-    // 2. Network / Local Storage fallback
-    try {
-      if (isOnline) {
-        const res = await fetch(`/api/students/search?q=${encodeURIComponent(queryToUse)}&limit=10`);
-        const json = await res.json();
+    // 3. Prefix match or name match in source
+    if (!match) {
+      const qUpper = queryToUse.toLocaleUpperCase('tr-TR');
+      match = source.find((s) => s.ogrenci_no.startsWith(queryToUse)) ||
+              source.find((s) => s.ad_soyad.toLocaleUpperCase('tr-TR') === qUpper) ||
+              source.find((s) => s.ad_soyad.toLocaleUpperCase('tr-TR').includes(qUpper));
+    }
+
+    if (match) {
+      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(40);
+      }
+      setSelectedStudent(match);
+      return;
+    }
+
+    // 4. Server fallback query if student not in memory
+    fetch(`/api/students/search?q=${encodeURIComponent(queryToUse)}&limit=1`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((json) => {
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          const match = json.data.find((s: Student) => s.ogrenci_no === queryToUse) || json.data[0];
-          if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-            navigator.vibrate(40);
-          }
-          setSelectedStudent(match);
-          setSearchResults([]);
-          setIsSearching(false);
-          return;
+          setSelectedStudent(json.data[0]);
+        } else {
+          toast.error(`"${queryToUse}" numaralı öğrenci bulunamadı.`);
         }
-      }
-
-      const local = await searchLocalStudents(queryToUse);
-      if (local.length > 0) {
-        const match = local.find((s) => s.ogrenci_no === queryToUse) || local[0];
-        setSelectedStudent(match);
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
-      }
-
-      toast.error(`"${queryToUse}" numaralı öğrenci bulunamadı.`);
-    } catch (e) {
-      toast.error('Öğrenci aranırken hata oluştu.');
-    } finally {
-      setIsSearching(false);
-    }
-  }, [searchQuery, isOnline]);
+      })
+      .catch(() => {
+        toast.error(`"${queryToUse}" numaralı öğrenci bulunamadı.`);
+      });
+  }, [searchQuery, allStudents, predictions]);
 
   const handleSelectStudent = (student: Student) => {
+    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(40);
+    }
     setSelectedStudent(student);
-    setSearchResults([]);
   };
 
   const handleReset = () => {
     setSelectedStudent(null);
     setSearchQuery('');
-    setSearchResults([]);
     setNote('');
     setShowNoteInput(false);
     setDuplicateWarning(null);
@@ -365,7 +325,6 @@ export default function TeacherPage() {
 
   const handleKeypadClear = () => {
     setSearchQuery('');
-    setSearchResults([]);
     setSelectedStudent(null);
   };
 
@@ -423,7 +382,6 @@ export default function TeacherPage() {
               <Button
                 type="button"
                 onClick={() => handleLookupStudent()}
-                disabled={isSearching}
                 className="h-14 px-5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-base shadow-md flex items-center gap-2 flex-shrink-0"
               >
                 <span>ENTER</span>
@@ -431,26 +389,22 @@ export default function TeacherPage() {
               </Button>
             </div>
 
-            {/* Tahmin / Öneri Alanı (Sabit yükseklik, kaydırma yapmaz) */}
-            <div className="min-h-[58px] max-h-[58px] bg-card rounded-2xl border border-border p-2 flex items-center shadow-sm overflow-hidden">
-              {searchQuery ? (
-                isSearching ? (
-                  <div className="w-full text-center text-xs font-semibold text-muted-foreground animate-pulse">
-                    Öğrenci aranıyor...
-                  </div>
-                ) : searchResults.length > 0 ? (
+            {/* Tahmin / Öneri Alanı (Canlı, anlık, kaydırma yapmaz) */}
+            <div className="min-h-[62px] max-h-[62px] bg-card rounded-2xl border border-blue-300 dark:border-blue-900 p-1.5 flex items-center shadow-sm overflow-hidden">
+              {searchQuery.trim() ? (
+                predictions.length > 0 ? (
                   <div className="flex items-center gap-2 overflow-x-auto w-full py-0.5 px-1 scrollbar-thin">
-                    {searchResults.map((st) => {
+                    {predictions.map((st) => {
                       const isExactNo = st.ogrenci_no === searchQuery.trim();
                       return (
                         <button
                           key={st.id}
                           type="button"
                           onClick={() => handleSelectStudent(st)}
-                          className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-left group active:scale-95 ${
+                          className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-left group active:scale-95 shadow-sm ${
                             isExactNo
-                              ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400 dark:ring-blue-600'
-                              : 'bg-blue-50 dark:bg-blue-950/70 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900'
+                              ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400 dark:ring-blue-500'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/70 hover:border-blue-400'
                           }`}
                         >
                           <div className={`h-8 w-8 rounded-lg font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm ${
@@ -465,16 +419,16 @@ export default function TeacherPage() {
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <span className={`text-xs font-black ${isExactNo ? 'text-white' : 'text-foreground group-hover:text-blue-600'}`}>
+                              <span className={`text-xs font-black truncate max-w-[130px] ${isExactNo ? 'text-white' : 'text-foreground group-hover:text-blue-600'}`}>
                                 {st.ad_soyad}
                               </span>
-                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${
-                                isExactNo ? 'bg-white/20 text-white' : 'bg-blue-200/80 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-black flex-shrink-0 ${
+                                isExactNo ? 'bg-white/25 text-white' : 'bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200'
                               }`}>
                                 {st.sinif}-{st.sube}
                               </span>
                             </div>
-                            <div className={`text-[11px] font-bold ${isExactNo ? 'text-blue-100' : 'text-blue-600 dark:text-blue-400'}`}>
+                            <div className={`text-[11px] font-extrabold ${isExactNo ? 'text-blue-100' : 'text-blue-600 dark:text-blue-400'}`}>
                               No: <strong>{st.ogrenci_no}</strong>
                             </div>
                           </div>
@@ -483,8 +437,8 @@ export default function TeacherPage() {
                     })}
                   </div>
                 ) : (
-                  <div className="w-full text-center text-xs font-semibold text-rose-600 dark:text-rose-400">
-                    Eşleşen öğrenci bulunamadı ({searchQuery})
+                  <div className="w-full text-center text-xs font-bold text-rose-600 dark:text-rose-400">
+                    &quot;{searchQuery}&quot; ile eşleşen öğrenci bulunamadı
                   </div>
                 )
               ) : (
@@ -731,7 +685,6 @@ export default function TeacherPage() {
             <button
               type="button"
               onClick={() => handleLookupStudent()}
-              disabled={isSearching}
               className="h-14 w-full rounded-2xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-black text-lg shadow-md transition-all flex items-center justify-center gap-2 select-none active:scale-[0.98]"
             >
               <span>ENTER ↵</span>
