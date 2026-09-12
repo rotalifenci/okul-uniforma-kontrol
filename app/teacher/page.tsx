@@ -29,7 +29,8 @@ import {
   Delete,
   ChevronRight,
   AlertCircle,
-  Activity
+  Activity,
+  CornerDownLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -57,9 +58,9 @@ export default function TeacherPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const allStudentsCacheRef = useRef<Student[]>([]);
 
-  // Preload students into memory cache for 0ms instantaneous keypad search
+  // Preload students into memory cache for 0ms instantaneous search
   useEffect(() => {
-    fetch('/api/students/search?q=&limit=300')
+    fetch('/api/students/search?q=&limit=1500')
       .then((r) => r.json())
       .then((json) => {
         if (json.success && Array.isArray(json.data)) {
@@ -91,89 +92,69 @@ export default function TeacherPage() {
     }
   }, [user, authLoading, router]);
 
-  // High-speed student search (Memory first -> Network fallback)
-  const performSearch = useCallback(async (query: string) => {
-    const trimmed = query.trim();
-    if (!trimmed) {
-      setSearchResults([]);
-      setIsSearching(false);
+  // Instant direct student lookup by exact number or name
+  const handleLookupStudent = useCallback(async (customQuery?: string) => {
+    const queryToUse = (typeof customQuery === 'string' ? customQuery : searchQuery).trim();
+    if (!queryToUse) {
+      toast.info('Lütfen bir öğrenci numarası girin.');
       return;
     }
 
-    // 1. Instant Synchronous Memory Match (0ms latency)
-    if (allStudentsCacheRef.current.length > 0) {
-      const qLower = trimmed.toLowerCase();
-      const memMatches = allStudentsCacheRef.current
-        .filter((st) =>
-          st.ogrenci_no.startsWith(trimmed) ||
-          st.ad_soyad.toLowerCase().includes(qLower)
-        )
-        .sort((a, b) => {
-          // Exact number match comes first
-          if (a.ogrenci_no === trimmed) return -1;
-          if (b.ogrenci_no === trimmed) return 1;
-          // Shorter numbers first
-          if (a.ogrenci_no.startsWith(trimmed) && b.ogrenci_no.startsWith(trimmed)) {
-            return a.ogrenci_no.length - b.ogrenci_no.length;
-          }
-          return 0;
-        });
+    setIsSearching(true);
 
-      if (memMatches.length > 0) {
-        setSearchResults(memMatches.slice(0, 10));
+    // 1. Search in memory cache first (0ms latency)
+    if (allStudentsCacheRef.current.length > 0) {
+      // Exact number match
+      let match = allStudentsCacheRef.current.find((s) => s.ogrenci_no === queryToUse);
+      
+      // If not exact number, try full name match or contains
+      if (!match) {
+        const qUpper = queryToUse.toLocaleUpperCase('tr-TR');
+        match = allStudentsCacheRef.current.find((s) => s.ad_soyad.toLocaleUpperCase('tr-TR') === qUpper) ||
+                allStudentsCacheRef.current.find((s) => s.ad_soyad.toLocaleUpperCase('tr-TR').includes(qUpper));
+      }
+
+      if (match) {
+        if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+          navigator.vibrate(40);
+        }
+        setSelectedStudent(match);
         setIsSearching(false);
         return;
       }
     }
 
-    setIsSearching(true);
-
-    if (isOnline) {
-      try {
-        const res = await fetch(`/api/students/search?q=${encodeURIComponent(trimmed)}&limit=10`);
+    // 2. Network / Local Storage fallback
+    try {
+      if (isOnline) {
+        const res = await fetch(`/api/students/search?q=${encodeURIComponent(queryToUse)}&limit=10`);
         const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          setSearchResults(json.data);
-          cacheStudentsLocally(json.data);
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const match = json.data.find((s: Student) => s.ogrenci_no === queryToUse) || json.data[0];
+          if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+            navigator.vibrate(40);
+          }
+          setSelectedStudent(match);
+          setIsSearching(false);
+          return;
         }
-      } catch (e) {
-        const local = await searchLocalStudents(trimmed);
-        setSearchResults(local);
-      } finally {
-        setIsSearching(false);
       }
-    } else {
-      const local = await searchLocalStudents(trimmed);
-      setSearchResults(local);
+
+      const local = await searchLocalStudents(queryToUse);
+      if (local.length > 0) {
+        const match = local.find((s) => s.ogrenci_no === queryToUse) || local[0];
+        setSelectedStudent(match);
+        setIsSearching(false);
+        return;
+      }
+
+      toast.error(`"${queryToUse}" numaralı öğrenci bulunamadı.`);
+    } catch (e) {
+      toast.error('Öğrenci aranırken hata oluştu.');
+    } finally {
       setIsSearching(false);
     }
-  }, [isOnline]);
-
-  useEffect(() => {
-    // 50ms fast debounce for search prediction
-    const timer = setTimeout(() => {
-      performSearch(searchQuery);
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [searchQuery, performSearch]);
-
-  // Auto-open student DIRECTLY only when the number is unambiguous (no other student number starts with this prefix, e.g. "36")
-  useEffect(() => {
-    const trimmed = searchQuery.trim();
-    if (!trimmed || selectedStudent || !/^\d+$/.test(trimmed)) return;
-
-    const students = allStudentsCacheRef.current.length > 0 ? allStudentsCacheRef.current : searchResults;
-    if (students.length === 0) return;
-
-    // Check all students starting with this prefix
-    const prefixMatches = students.filter((s) => s.ogrenci_no.startsWith(trimmed));
-
-    // If only 1 student in the school starts with this prefix and it is an exact match (e.g. "36", "53")
-    if (prefixMatches.length === 1 && prefixMatches[0].ogrenci_no === trimmed) {
-      setSelectedStudent(prefixMatches[0]);
-      setSearchResults([]);
-    }
-  }, [searchQuery, selectedStudent, searchResults]);
+  }, [searchQuery, isOnline]);
 
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
@@ -321,123 +302,60 @@ export default function TeacherPage() {
       />
 
       <main className="flex-1 max-w-lg w-full mx-auto p-3 sm:p-4 space-y-3">
-        {/* Step 1: Rapid Search Box & Keypad (Fixed layout, no shifting, no overlay blocking) */}
-        <div className="space-y-2.5">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground">
-              <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <Input
-              ref={searchInputRef}
-              type="text"
-              inputMode={isTouchDevice ? "none" : "numeric"}
-              readOnly={isTouchDevice}
-              placeholder="Öğrenci No girin..."
-              value={searchQuery}
-              onClick={() => {
-                if (isTouchDevice && searchInputRef.current) {
-                  searchInputRef.current.blur();
-                }
-              }}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                if (selectedStudent) setSelectedStudent(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const trimmed = searchQuery.trim();
-                  if (!trimmed) return;
-                  const pool = allStudentsCacheRef.current.length > 0 ? allStudentsCacheRef.current : searchResults;
-                  const exact = pool.find((s) => s.ogrenci_no === trimmed) || searchResults[0];
-                  if (exact) {
-                    handleSelectStudent(exact);
-                  }
-                }
-              }}
-              className="h-14 pl-11 pr-20 text-lg font-semibold rounded-2xl shadow-sm border-blue-200 dark:border-blue-900 focus-visible:ring-blue-600 bg-card cursor-pointer sm:cursor-text"
-            />
-            {searchQuery && (
-              <div className="absolute inset-y-0 right-0 pr-2 flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleReset}
-                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Temizle
-                </Button>
+        {/* Step 1: Rapid Number Input & Dedicated ENTER Button */}
+        {!selectedStudent && (
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground">
+                <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
-            )}
-          </div>
-
-          {/* Dedicated Candidate / Prediction Area (Fixed Slot - NEVER covers keypad & NEVER shifts) */}
-          {!selectedStudent && (
-            <div className="min-h-[58px] bg-card rounded-2xl border border-border p-2 flex items-center shadow-sm overflow-hidden">
-              {searchQuery ? (
-                isSearching ? (
-                  <div className="w-full text-center text-xs font-semibold text-muted-foreground animate-pulse">
-                    Öğrenci aranıyor...
-                  </div>
-                ) : searchResults.length > 0 ? (
-                  <div className="flex items-center gap-2 overflow-x-auto w-full py-0.5 px-1 scrollbar-thin">
-                    {searchResults.map((st) => {
-                      const isExactNo = st.ogrenci_no === searchQuery.trim();
-                      return (
-                        <button
-                          key={st.id}
-                          type="button"
-                          onClick={() => handleSelectStudent(st)}
-                          className={`flex-shrink-0 flex items-center gap-2.5 px-3.5 py-2 rounded-xl border transition-all text-left group active:scale-95 ${
-                            isExactNo
-                              ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400 dark:ring-blue-600'
-                              : 'bg-blue-50 dark:bg-blue-950/70 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900'
-                          }`}
-                        >
-                          <div className={`h-8 w-8 rounded-lg font-extrabold text-xs flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm ${
-                            isExactNo ? 'bg-white text-blue-700' : 'bg-blue-600 text-white'
-                          }`}>
-                            {st.profil_resmi_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={st.profil_resmi_url} alt={st.ad_soyad} className="w-full h-full object-cover" />
-                            ) : (
-                              st.ogrenci_no
-                            )}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-xs font-black ${isExactNo ? 'text-white' : 'text-foreground group-hover:text-blue-600'}`}>
-                                {st.ad_soyad}
-                              </span>
-                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${
-                                isExactNo ? 'bg-white/20 text-white' : 'bg-blue-200/80 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
-                              }`}>
-                                {st.sinif}-{st.sube}
-                              </span>
-                            </div>
-                            <div className={`text-[11px] font-bold ${isExactNo ? 'text-blue-100' : 'text-blue-600 dark:text-blue-400'}`}>
-                              No: <strong>{st.ogrenci_no}</strong>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="w-full text-center text-xs font-semibold text-rose-600 dark:text-rose-400">
-                    Eşleşen öğrenci bulunamadı ({searchQuery})
-                  </div>
-                )
-              ) : (
-                <div className="w-full text-center text-xs font-medium text-muted-foreground flex items-center justify-center gap-1.5">
-                  <span>💡</span>
-                  <span>Numarayı tuşlayın (Örn: 124) veya eşleşen öğrenciye dokunun</span>
+              <Input
+                ref={searchInputRef}
+                type="text"
+                inputMode={isTouchDevice ? "none" : "numeric"}
+                readOnly={isTouchDevice}
+                placeholder="Öğrenci No girin... (Örn: 44)"
+                value={searchQuery}
+                onClick={() => {
+                  if (isTouchDevice && searchInputRef.current) {
+                    searchInputRef.current.blur();
+                  }
+                }}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (selectedStudent) setSelectedStudent(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleLookupStudent();
+                  }
+                }}
+                className="h-14 pl-11 pr-10 text-xl font-black rounded-2xl shadow-sm border-blue-200 dark:border-blue-900 focus-visible:ring-blue-600 bg-card cursor-pointer sm:cursor-text tracking-wide"
+              />
+              {searchQuery && (
+                <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center">
+                  <button
+                    type="button"
+                    onClick={handleKeypadClear}
+                    className="h-7 w-7 rounded-full bg-slate-200 dark:bg-slate-800 text-muted-foreground hover:text-foreground flex items-center justify-center text-xs font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
             </div>
-          )}
-        </div>
+            <Button
+              type="button"
+              onClick={() => handleLookupStudent()}
+              disabled={isSearching}
+              className="h-14 px-5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-base shadow-md flex items-center gap-2 flex-shrink-0"
+            >
+              <span>ENTER</span>
+              <CornerDownLeft className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
 
         {/* Step 2: Student Profile Card & Instant Violation Buttons */}
         {selectedStudent ? (
@@ -669,6 +587,16 @@ export default function TeacherPage() {
                 <Delete className="h-6 w-6" />
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => handleLookupStudent()}
+              disabled={isSearching}
+              className="h-14 w-full rounded-2xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-black text-lg shadow-md transition-all flex items-center justify-center gap-2 select-none active:scale-[0.98]"
+            >
+              <span>ENTER ↵</span>
+              <span className="text-xs bg-white/20 font-bold px-2.5 py-0.5 rounded-full">ÖĞRENCİYİ GETİR</span>
+            </button>
           </div>
         )}
       </main>

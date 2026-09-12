@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const sinif = searchParams.get('sinif') || undefined;
     const sube = searchParams.get('sube') || undefined;
     const limitParam = searchParams.get('limit');
-    const limit = limitParam ? Math.min(parseInt(limitParam, 10) || 20, 50) : 20;
+    const limit = limitParam ? Math.min(parseInt(limitParam, 10) || 20, 2000) : 20;
 
     const students = await studentRepository.searchStudents({
       query,

@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { studentRepository } from '@/repositories/student.repository';
 
 describe('Student Search & Repository', () => {
-  it('should find student by exact student number from 8A sınıfı.xlsx', async () => {
-    const student = await studentRepository.findByOgrenciNo('1');
+  it('should find student by exact student number from MAİ SINIF.xls', async () => {
+    const student = await studentRepository.findByOgrenciNo('44');
     expect(student).not.toBeNull();
-    expect(student?.ogrenci_no).toBe('1');
-    expect(student?.ad_soyad).toBe('Ahmet Yılmaz');
-    expect(student?.sinif).toBe('8');
+    expect(student?.ogrenci_no).toBe('44');
+    expect(student?.ad_soyad).toBe('YİĞİT ARSLAN');
+    expect(student?.sinif).toBe('5');
     expect(student?.sube).toBe('A');
   });
 

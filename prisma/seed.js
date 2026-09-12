@@ -2,11 +2,12 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const xlsx = require('xlsx');
 const path = require('path');
+const fs = require('fs');
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Synchronizing database schema and records safely...');
+  console.log('Synchronizing database from MAİ SINIF.xls...');
 
   // 1. Safe System Settings (upsert)
   const defaultSettings = [
@@ -47,7 +48,7 @@ async function main() {
   const mainTeacherPassword = await bcrypt.hash('767943', 10);
   const teacherPassword = await bcrypt.hash('123456', 10);
 
-  const admin = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { username: 'idaremai' },
     update: { active: true },
     create: {
@@ -60,7 +61,7 @@ async function main() {
     },
   });
 
-  const mainTeacher = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { username: 'sivasmai' },
     update: { active: true },
     create: {
@@ -80,9 +81,8 @@ async function main() {
     { username: 'ogretmen4', name: 'Elif', surname: 'Yıldız', role: 'TEACHER' },
   ];
 
-  const createdTeachers = [mainTeacher];
   for (const t of otherTeachers) {
-    const user = await prisma.user.upsert({
+    await prisma.user.upsert({
       where: { username: t.username },
       update: { active: true },
       create: {
@@ -94,12 +94,13 @@ async function main() {
         active: true,
       },
     });
-    createdTeachers.push(user);
   }
 
-  // 4. Read and sync 8A sınıfı.xlsx or sınıf.xlsx
-  const fs = require('fs');
-  let excelPath = path.join(__dirname, '../8A sınıfı.xlsx');
+  // 4. Find Excel file: MAİ SINIF.xls or 8A sınıfı.xlsx or sınıf.xlsx
+  let excelPath = path.join(__dirname, '../MAİ SINIF.xls');
+  if (!fs.existsSync(excelPath)) {
+    excelPath = path.join(__dirname, '../8A sınıfı.xlsx');
+  }
   if (!fs.existsSync(excelPath)) {
     excelPath = path.join(__dirname, '../sınıf.xlsx');
   }
@@ -111,220 +112,159 @@ async function main() {
 
   console.log(`Processing ${rawRows.length} rows from ${path.basename(excelPath)}...`);
 
-  const createdStudents = [];
-  const seenNos = new Set();
+  // Parse header to find column indices
+  let headerIndex = -1;
+  let noCol = -1;
+  let sinifCol = -1;
+  let adiCol = -1;
+  let soyadiCol = -1;
 
-  for (let i = 0; i < rawRows.length; i++) {
+  for (let i = 0; i < Math.min(5, rawRows.length); i++) {
     const row = rawRows[i];
-    if (!row || row.length < 2) continue;
-
-    // Detect if this is the header row
-    const rowFirstCell = String(row[0] || '').trim().toLowerCase();
-    if (rowFirstCell.includes('sınıf') || rowFirstCell.includes('sinif') || rowFirstCell.includes('sıra') || rowFirstCell === 'no') {
-      continue;
+    if (!Array.isArray(row)) continue;
+    for (let c = 0; c < row.length; c++) {
+      const cell = String(row[c] || '').trim().toLowerCase();
+      if (cell.includes('öğrenci no') || cell === 'no' || cell === 'ogrenci no') noCol = c;
+      if (cell.includes('sınıf') || cell.includes('sinif')) sinifCol = c;
+      if (cell === 'adı' || cell === 'adi' || cell === 'ad') adiCol = c;
+      if (cell === 'soyadı' || cell === 'soyadi' || cell === 'soyad') soyadiCol = c;
     }
+    if (noCol !== -1 && (sinifCol !== -1 || adiCol !== -1)) {
+      headerIndex = i;
+      break;
+    }
+  }
 
-    let classStr = String(row[0] || '8/A').trim();
+  const femaleKeywords = [
+    'AYŞE', 'FATMA', 'EMİNE', 'ZEYNEP', 'HATİCE', 'ELİF', 'MERVE', 'BÜŞRA',
+    'SELİN', 'GAMZE', 'TUĞBA', 'KÜBRA', 'EBRU', 'YASEMİN', 'ESRA', 'DUYGU',
+    'ÖZLEM', 'SEDA', 'RABİA', 'HİLAL', 'ASLI', 'GİZEM', 'MELİKE', 'PELİN',
+    'SİMGE', 'İREM', 'DAMLA', 'ECE', 'EZGİ', 'DERYA', 'BURCU', 'AYLİN',
+    'HANDE', 'ŞEVVAL', 'BEYZA', 'ALEYNA', 'CEREN', 'SENA', 'NİHAL', 'SİBEL',
+    'FİLİZ', 'NERMİN', 'SEMRA', 'RÜYA', 'BEGÜM', 'SELEN', 'NİSA', 'NUR',
+    'EBRAR', 'ECRİN', 'ŞERİFE', 'İLAYDA', 'HAYRUNNİSA', 'NİSANUR', 'RÜMEYSA',
+    'ZEHRANUR', 'ZEHRA', 'SAHRA', 'AZRA', 'YAĞMUR', 'HİRANUR', 'ERVA', 'BELİNAY',
+    'MEDİNE', 'BERRA', 'GÜL', 'SUDENAZ', 'DEFNE', 'ASYA', 'DURU', 'NEHİR'
+  ];
+
+  const seenNos = new Set();
+  const validStudents = [];
+
+  const startRow = headerIndex >= 0 ? headerIndex + 1 : 0;
+  for (let i = startRow; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    if (!row || row.length === 0) continue;
+
     let noStr = '';
-    let nameStr = '';
+    let sinifStr = '';
+    let adStr = '';
+    let soyadStr = '';
 
-    // If format is [ "8/A", 1, "Ahmet", "Yılmaz" ]
-    if (row.length >= 4 && /^\d+$/.test(String(row[1] || '').trim()) && typeof row[2] === 'string' && typeof row[3] === 'string') {
-      noStr = String(row[1]).trim();
-      nameStr = (String(row[2]).trim() + ' ' + String(row[3]).trim()).trim();
-    }
-    // If format is [ "8/A", 1, "AHMET BAŞER", 290 ]
-    else if (typeof row[3] === 'number' && Number.isInteger(row[3]) && typeof row[2] === 'string') {
-      noStr = String(row[3]).trim();
-      nameStr = String(row[2]).trim();
-    }
-    // If format is [ "8/A", 290, "AHMET BAŞER" ]
-    else if (/^\d+$/.test(String(row[1] || '').trim()) && typeof row[2] === 'string') {
-      noStr = String(row[1]).trim();
-      nameStr = String(row[2]).trim();
-    }
-
-    if (!noStr || !nameStr || !/^\d+$/.test(noStr) || seenNos.has(noStr)) {
-      continue;
+    if (noCol !== -1 && adiCol !== -1 && soyadiCol !== -1) {
+      noStr = String(row[noCol] || '').trim();
+      sinifStr = String(row[sinifCol] || '').trim();
+      adStr = String(row[adiCol] || '').trim();
+      soyadStr = String(row[soyadiCol] || '').trim();
+    } else {
+      // Fallback format heuristics
+      if (row.length >= 4) {
+        noStr = String(row[0] || '').trim();
+        sinifStr = String(row[1] || '').trim();
+        adStr = String(row[2] || '').trim();
+        soyadStr = String(row[3] || '').trim();
+      }
     }
 
-    // Parse class and branch (8/A)
-    let grade = '8';
+    if (!noStr || !/^\d+$/.test(noStr)) continue;
+    if (seenNos.has(noStr)) continue;
+
+    const adSoyad = (adStr + ' ' + soyadStr).trim();
+    if (!adSoyad) continue;
+
+    let grade = '5';
     let branch = 'A';
-
-    if (classStr) {
-      const match = classStr.match(/^(\d+)[-/ ]?([A-Za-zĞÜŞİÖÇğüşıöç]?)$/);
+    if (sinifStr.includes('/')) {
+      const parts = sinifStr.split('/');
+      grade = parts[0]?.trim() || '5';
+      branch = parts[1]?.trim().toUpperCase() || 'A';
+    } else {
+      const match = sinifStr.match(/^(\d+)[-/ ]?([A-Za-zĞÜŞİÖÇğüşıöç]?)$/);
       if (match) {
-        grade = match[1] || '8';
+        grade = match[1] || '5';
         branch = (match[2] || 'A').toUpperCase();
       }
     }
 
     seenNos.add(noStr);
-    const avatarSeed = encodeURIComponent(nameStr.toLowerCase().replace(/\s+/g, '-'));
+    const isFemale = femaleKeywords.some((kw) => adSoyad.toLocaleUpperCase('tr-TR').includes(kw));
+    const avatarSeed = encodeURIComponent(adSoyad.toLowerCase().replace(/\s+/g, '-'));
 
-    // Infer gender
-    const femaleKeywords = [
-      'AYŞE', 'FATMA', 'EMİNE', 'ZEYNEP', 'HATİCE', 'ELİF', 'MERVE', 'BÜŞRA',
-      'SELİN', 'GAMZE', 'TUĞBA', 'KÜBRA', 'EBRU', 'YASEMİN', 'ESRA', 'DUYGU',
-      'ÖZLEM', 'SEDA', 'RABİA', 'HİLAL', 'ASLI', 'GİZEM', 'MELİKE', 'PELİN',
-      'SİMGE', 'İREM', 'DAMLA', 'ECE', 'EZGİ', 'DERYA', 'BURCU', 'AYLİN',
-      'HANDE', 'ŞEVVAL', 'BEYZA', 'ALEYNA', 'CEREN', 'SENA', 'NİHAL', 'SİBEL',
-      'FİLİZ', 'NERMİN', 'SEMRA', 'RÜYA', 'BEGÜM', 'SELEN', 'NİSA', 'NUR',
-      'EBRAR', 'ECRİN', 'ŞERİFE', 'İLAYDA', 'HAYRUNNİSA', 'NİSANUR', 'RÜMEYSA', 'ZEHRANUR'
-    ];
-    const isFemale = femaleKeywords.some((kw) => nameStr.toLocaleUpperCase('tr-TR').includes(kw));
+    validStudents.push({
+      ogrenci_no: noStr,
+      ad_soyad: adSoyad,
+      sinif: grade,
+      sube: branch,
+      cinsiyet: isFemale ? 'KIZ' : 'ERKEK',
+      veli_telefon: `05${Math.floor(300000000 + Math.random() * 699999999)}`,
+      profil_resmi_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${avatarSeed}`,
+      aktif: true,
+    });
+  }
 
-    const student = await prisma.student.upsert({
-      where: { ogrenci_no: noStr },
+  console.log(`Parsed ${validStudents.length} valid students from file.`);
+
+  // Upsert all valid students
+  for (const st of validStudents) {
+    await prisma.student.upsert({
+      where: { ogrenci_no: st.ogrenci_no },
       update: {
-        ad_soyad: nameStr,
-        sinif: grade,
-        sube: branch,
+        ad_soyad: st.ad_soyad,
+        sinif: st.sinif,
+        sube: st.sube,
+        cinsiyet: st.cinsiyet,
         aktif: true,
       },
-      create: {
-        ogrenci_no: noStr,
-        ad_soyad: nameStr,
-        sinif: grade,
-        sube: branch,
-        cinsiyet: isFemale ? 'KIZ' : 'ERKEK',
-        veli_telefon: `05${Math.floor(300000000 + Math.random() * 699999999)}`,
-        profil_resmi_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${avatarSeed}`,
-        aktif: true,
-      },
+      create: st,
     });
-    createdStudents.push(student);
   }
 
-  console.log(`Successfully synced ${createdStudents.length} students from ${path.basename(excelPath)} (8/A)!`);
-
-  // 5. Sample Violations (Only create if database has NO existing violations, protecting user records)
-  const existingViolationCount = await prisma.violation.count();
-  let violationCount = existingViolationCount;
-
-  if (existingViolationCount === 0 && createdStudents.length >= 3) {
-    const now = new Date();
-    const istanbulFormatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/Istanbul',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    const todayStr = istanbulFormatter.format(now); // YYYY-MM-DD
-
-    const [curY, curM, curD] = todayStr.split('-').map(Number);
-    const curDateObj = new Date(curY, curM - 1, curD);
-    const dayOfWeek = curDateObj.getDay();
-    const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-
-    const dates = [];
-    for (let i = 0; i <= distanceToMonday; i++) {
-      const d = new Date(curY, curM - 1, curD - distanceToMonday + i);
-      const yStr = d.getFullYear();
-      const mStr = String(d.getMonth() + 1).padStart(2, '0');
-      const dStr = String(d.getDate()).padStart(2, '0');
-      const formatted = `${yStr}-${mStr}-${dStr}`;
-      if (formatted <= todayStr) {
-        dates.push(formatted);
-      }
-    }
-
-    if (!dates.includes(todayStr)) {
-      dates.push(todayStr);
-    }
-
-    const violationTypes = [
-      'UPPER_UNIFORM_MISSING',
-      'LOWER_UNIFORM_MISSING',
-      'PHYSICAL_EDUCATION_UNIFORM',
-      'CIVIL_CLOTHES',
-      'INAPPROPRIATE_CLOTHING',
-      'OTHER'
-    ];
-
-    const sampleNotes = [
-      'Mont ile okul forması kapatılmış.',
-      'Kapüşonlu sivil sweatshirt giyilmiş.',
-      'Kot pantolon ve sivil tişört.',
-      'Beden eğitimi dersi olmadığı halde eşofman giyilmiş.',
-      'Okul arması olmayan sivil polar hırka.',
-      '',
-      null,
-    ];
-
-    const sampleTimes = ['08:15', '08:24', '08:35', '08:42', '08:55', '09:10', '10:05'];
-
-    // Student 0 (Ahmet Yılmaz)
-    const ahmetDates = dates.length > 1 ? [dates[0], dates[dates.length - 1]] : [dates[0]];
-    for (let i = 0; i < ahmetDates.length; i++) {
-      await prisma.violation.create({
-        data: {
-          student_id: createdStudents[0].id,
-          teacher_id: createdTeachers[i % createdTeachers.length].id,
-          duty_teacher_name: 'Nöbetçi Öğretmen',
-          duty_location: 'Ana Giriş Kapısı',
-          type: violationTypes[i % 3],
-          note: sampleNotes[i % sampleNotes.length],
-          date: ahmetDates[i],
-          time: sampleTimes[i],
-          client_transaction_id: `seed-sinif-${createdStudents[0].id}-${i}`,
-        },
-      });
-      violationCount++;
-    }
-
-    // Student 1 (Mehmet Demir)
-    const mehmetDates = dates.length > 1 ? [dates[0], dates[dates.length - 1]] : [dates[0]];
-    for (let i = 0; i < mehmetDates.length; i++) {
-      await prisma.violation.create({
-        data: {
-          student_id: createdStudents[1].id,
-          teacher_id: createdTeachers[(i + 1) % createdTeachers.length].id,
-          duty_teacher_name: 'Nöbetçi Öğretmen',
-          duty_location: 'Zemin Kat Koridor',
-          type: violationTypes[1],
-          note: sampleNotes[1],
-          date: mehmetDates[i],
-          time: sampleTimes[i + 1],
-          client_transaction_id: `seed-sinif-${createdStudents[1].id}-${i}`,
-        },
-      });
-      violationCount++;
-    }
-
-    // Student 2 (Mustafa Kaya)
-    await prisma.violation.create({
-      data: {
-        student_id: createdStudents[2].id,
-        teacher_id: createdTeachers[0].id,
-        duty_teacher_name: 'Nöbetçi Öğretmen',
-        duty_location: 'Ana Giriş Kapısı',
-        type: 'CIVIL_CLOTHES',
-        note: 'Sivil sweatshirt giyilmiş.',
-        date: todayStr,
-        time: '08:30',
-        client_transaction_id: `seed-sinif-${createdStudents[2].id}-0`,
+  // Deactivate students that are not in MAİ SINIF
+  await prisma.student.updateMany({
+    where: {
+      ogrenci_no: {
+        notIn: Array.from(seenNos),
       },
-    });
-    violationCount++;
-  }
+    },
+    data: {
+      aktif: false,
+    },
+  });
 
-  // Initial Audit Log
+  // User requested: "Önceki kayıtları sil" -> clear previous violations & logs
+  await prisma.violation.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.qrSession.deleteMany();
+
+  // Initial Clean Audit Log
   await prisma.auditLog.create({
     data: {
       action: 'SYSTEM_INITIALIZED',
-      entity_type: 'SETTING',
-      entity_id: 'init',
-      new_value: JSON.stringify({ message: 'Güncellenen sınıf.xlsx (8/A) veritabanına aktarıldı.' }),
+      entity_type: 'STUDENT',
+      entity_id: 'mai_sinif_sync',
+      new_value: JSON.stringify({ message: `${validStudents.length} öğrenci MAİ SINIF dosyasından aktarıldı ve önceki ihlal kayıtları temizlendi.` }),
       ip_address: '127.0.0.1',
       user_agent: 'Node/SeedScript',
     },
   });
 
-  console.log(`Seed completed successfully!`);
-  console.log(`Total students in DB: ${createdStudents.length}`);
-  console.log(`Total sample violations: ${violationCount}`);
+  const totalInDb = await prisma.student.count({ where: { aktif: true } });
+  const totalViolations = await prisma.violation.count();
+
+  console.log('==============================================');
+  console.log(`✅ MAİ SINIF Senkronizasyonu Tamamlandı!`);
+  console.log(`Aktif Öğrenci Sayısı: ${totalInDb}`);
+  console.log(`Mevcut İhlal Kayıtları: ${totalViolations} (Temizlendi)`);
+  console.log('==============================================');
 }
 
 main()
